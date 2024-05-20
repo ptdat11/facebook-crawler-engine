@@ -13,8 +13,7 @@ page_ids = [
 data_pipeline = Pipeline(
     SaveAsCSV(
         "posts.csv",
-        columns=["page_id", "post_id", "post_url", "datetime", "text", "images"],
-        append_existing=True
+        columns=["page_id", "post_id", "post_url", "datetime", "text", "images"]
     )
 )
 
@@ -22,6 +21,7 @@ engine = Engine(
     crawler_type=FacebookPageCrawler,
     start_urls=[f"https://mbasic.facebook.com/{id}?v=timeline" for id in page_ids],
     data_pipeline=data_pipeline,
+    progress_dir="./progress-1",
     name_format="Facebook Crawler-{0}",
     crawler_kwargs={
         "email": email,

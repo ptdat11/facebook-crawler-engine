@@ -7,8 +7,9 @@ from selenium.webdriver.remote.webelement import WebElement
 
 from post import PagePostMetadata
 from pipeline import Pipeline
+from progress import Progress
+from logger import Logger
 
-from collections import deque
 from typing import Iterable
 import numpy as np
 import time
@@ -21,8 +22,7 @@ class Crawler(threading.Thread):
     """
     def __init__(
         self,
-        queue: deque,
-        history: set,
+        progress: Progress,
         data_pipeline: Pipeline,
         name: str | None = None,
         mean_std_sleep_second: tuple[float, float] = (10, 1),
@@ -36,8 +36,8 @@ class Crawler(threading.Thread):
             name = f"Crawler-{total_crawler}"
         super().__init__(None, self, name, *thread_args, **thread_kwargs)
 
-        self.queue = queue
-        self.history = history
+        self.logger = Logger(name)
+        self.progress = progress
         self.data_pipeline = data_pipeline
 
         self.mean_std_sleep_second = mean_std_sleep_second
@@ -47,7 +47,7 @@ class Crawler(threading.Thread):
         self.driver_service = Service(self.driver_manager)
         self.driver_options = webdriver.ChromeOptions()
         self.driver_options.add_experimental_option("detach", True)
-                        
+
     def new_tab(self, url: str):
         self.chrome.switch_to.new_window("tab")
         self.chrome.get(url)
@@ -61,15 +61,6 @@ class Crawler(threading.Thread):
     def wait_DOM(self):
         self.chrome.implicitly_wait(self.DOM_wait_second)
     
-    def save_history(self, url: str):
-        self.history.add(url)
-    
-    def enqueue(self, url: str):
-        self.queue.append(url)
-    
-    def next_url(self):
-        return self.queue.popleft()
-    
     def on_start(self):
         pass
     
@@ -78,45 +69,42 @@ class Crawler(threading.Thread):
     
     def run(self):
         self.chrome = webdriver.Chrome(service=self.driver_service, options=self.driver_options)
-        print(f"{self.name} started")
+        self.logger.info(f"Driver started")
 
         # What to do before crawling
         self.on_start()
         # If there exists URLs in queue
-        while len(self.queue) > 0:
+        while self.progress.remaining_num() > 0:
             try:
                 # Extract 1
-                url = self.next_url()
+                url = self.progress.next_url()
                 # Get data
                 data = self.parse(url)
                 # Put data into Pipeline for whatever task
                 self.data_pipeline(data)
                 # Add URL to history once done
-                self.history.add(url)
+                self.progress.add_history(url)
             except:
                 # If this url hasn't been crawled successfully
-                if url not in self.history:
+                if not self.progress.propagated(url):
                     # Re-append URL to queue
-                    self.queue.appendleft(url)
-
+                    self.progress.enqueue(url, "left")
 
 class FacebookPageCrawler(Crawler):
     def __init__(
         self, 
         email: str,
         password: str,
-        queue: deque,
-        history: set,
+        progress: Progress,
         data_pipeline: Pipeline,
         name: str | None = None,
-        mean_std_sleep_second: tuple[float, float] = (10, 1),
+        mean_std_sleep_second: tuple[float, float] = (6, 1),
         DOM_wait_second: float = 60,
         thread_args: Iterable = (),
         thread_kwargs: dict = {}
     ) -> None:
         super().__init__(
-            queue=queue, 
-            history=history,
+            progress=progress,
             data_pipeline=data_pipeline,
             name=name,
             mean_std_sleep_second=mean_std_sleep_second, 
@@ -171,7 +159,7 @@ class FacebookPageCrawler(Crawler):
             if (
                 "image" in metadata.attachment_types 
                 and metadata.preview_text != "" 
-                and metadata.post_id not in self.history
+                and not self.progress.propagated(metadata.post_url)
             ):
                 self.new_tab(metadata.post_url)
                 text, images = self.parse_post()
@@ -185,6 +173,8 @@ class FacebookPageCrawler(Crawler):
                     "images": images
                 }
                 data.append(sample)
+
+                self.progress.add_history(metadata.post_url)
                 self.chrome.close()
                 self.chrome.switch_to.window(current_tab_handle)
 
@@ -193,7 +183,7 @@ class FacebookPageCrawler(Crawler):
         next_page_link = next_page_el.get_attribute("href") \
                         if next_page_el is not None \
                         else None
-        self.enqueue(next_page_link)
+        self.progress.enqueue(next_page_link)
 
         return data
 

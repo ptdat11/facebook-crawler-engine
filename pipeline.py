@@ -1,5 +1,7 @@
 from pandas import DataFrame
 from typing import Sequence, Callable, Any
+import os
+
 
 class Pipeline:
     def __init__(
@@ -26,11 +28,9 @@ class SaveAsCSV:
         self,
         path: str,
         columns: Sequence[str],
-        append_existing: bool = True,
     ) -> None:
         self.path = path
         self.columns = columns
-        self.append_existing = append_existing
 
     def __call__(
         self,
@@ -40,8 +40,8 @@ class SaveAsCSV:
         df.to_csv(
             self.path,
             index=False,
-            mode="a" if self.append_existing else "w",
-            header=self.write_times == 0
+            mode="a",
+            header=not os.path.exists(self.path)
         )
 
         return data
