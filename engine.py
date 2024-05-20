@@ -10,7 +10,7 @@ class Engine:
         crawler_type: Type[Crawler],
         start_urls: Sequence[str],
         data_pipeline: Pipeline,
-        progress_path: str = "./progress/",
+        progress_dir: str = "./progress",
         num_crawlers: int = 1,
         name_format: str = "Crawler-{0}",
         crawler_args=(), crawler_kwargs={}

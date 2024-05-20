@@ -13,7 +13,7 @@ page_ids = [
 data_pipeline = Pipeline(
     SaveAsCSV(
         "posts.csv",
-        ["page_id", "post_id", "post_url", "datetime", "text", "images"],
+        columns=["page_id", "post_id", "post_url", "datetime", "text", "images"],
         append_existing=True
     )
 )
