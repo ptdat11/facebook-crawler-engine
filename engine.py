@@ -45,7 +45,6 @@ class Engine:
         for crawler in self.crawlers:
             crawler.join()
 
-
     def run(self):
         try:
             for crawler in self.crawlers:

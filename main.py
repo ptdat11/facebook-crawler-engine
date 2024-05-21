@@ -20,7 +20,7 @@ engine = Engine(
     data_pipeline=data_pipeline,
     progress_dir="./progress-1",
     num_crawlers=2,
-    name_format="Facebook Crawler-{0}",
+    name_format="Crawler-{0}",
     crawler_kwargs={
         "mean_std_sleep_second": (6, 1),
         "DOM_wait_second": 90,

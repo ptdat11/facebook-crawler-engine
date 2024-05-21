@@ -1,5 +1,7 @@
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.by import By
+import selenium.common.exceptions as exc
+
 from datetime import datetime, time, timedelta
 import re
 from urllib.parse import urlparse
@@ -30,19 +32,18 @@ class PagePostMetadata:
         raw_date = re.sub(r"([\d\w\s]+)\s·[\s\w\d]+$", r"\1", date_div.text)
 
         if len(content) > 1:
-            try:
-                content[1].find_element(By.TAG_NAME, "article")
+            attachment_element: WebElement = content[1].find_element(By.XPATH, "(div)[1]").find_element(By.XPATH, "*")
+            if attachment_element.tag_name == "article":
                 attachment_hrefs = ["shared post"]
-            except:
+            else:
                 attachment_hrefs = [
                     a.get_attribute("href")
                     for a in content[1].find_elements(By.TAG_NAME, "a")
                 ]
-            
         else: attachment_hrefs = []
-        
 
-        self.date, self.attachment_types = self.parse_data(raw_date, attachment_hrefs)        
+        print("Parsing date and type")
+        self.date, self.attachment_types = self.parse_data(raw_date, attachment_hrefs)
         self.page_id = page_id
         self.post_id = post_id
         self.post_url = f"https://facebook.com/{self.post_id}"
