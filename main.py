@@ -6,6 +6,7 @@ page_ids = [
     "ThoBayMau",
     "EnComics"
 ]
+
 data_pipeline = Pipeline(
     SaveAsCSV(
         "posts.csv",
@@ -21,7 +22,8 @@ engine = Engine(
     num_crawlers=2,
     name_format="Facebook Crawler-{0}",
     crawler_kwargs={
-
+        "mean_std_sleep_second": (6, 1),
+        "DOM_wait_second": 90,
     }
 )
 engine.run()

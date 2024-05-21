@@ -19,7 +19,11 @@ class Engine:
     ) -> None:
         self.logger = Logger("Engine")
         self.progress = Progress(progress_dir)
-        for url in set(start_urls).difference(self.progress.queue):
+        for url in (
+            set(start_urls)
+            .difference(self.progress.queue)
+            .difference(self.progress.history)
+        ):
             self.progress.enqueue(url, "left")
 
         self.termination_event = threading.Event()
@@ -37,13 +41,20 @@ class Engine:
             for i in range(num_crawlers)
         ]
 
+    def wait_all(self):
+        for crawler in self.crawlers:
+            crawler.join()
+
+
     def run(self):
         try:
             for crawler in self.crawlers:
                 crawler.start()
-            for crawler in self.crawlers:
-                crawler.join()
+            self.wait_all()
+        except: pass
         finally:
             self.termination_event.set()
+            self.wait_all()
+            
             self.logger.warn("Saving progress on termination")
             self.progress.save()

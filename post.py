@@ -1,6 +1,6 @@
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.by import By
-from datetime import datetime
+from datetime import datetime, time, timedelta
 import re
 from urllib.parse import urlparse
 from typing import Sequence, Literal
@@ -8,7 +8,8 @@ from typing import Sequence, Literal
 HREF_TYPE: dict[str, Literal["image", "video", "link"]] = {
     "/photo.php": "image",
     "/video_redirect/": "video",
-    "/l.php": "link"
+    "/l.php": "link",
+    "shared post": "shared post"
 }
 
 class PagePostMetadata:
@@ -27,11 +28,19 @@ class PagePostMetadata:
         
         post_id = re.sub(r"^like_([\d]+)$", r"\1", post_id)
         raw_date = re.sub(r"([\d\w\s]+)\s·[\s\w\d]+$", r"\1", date_div.text)
-        attachment_hrefs = [
-                a.get_attribute("href")
-                for a in content[1].find_elements(By.TAG_NAME, "a")
-            ] if len(content) > 1 \
-            else []
+
+        if len(content) > 1:
+            try:
+                content[1].find_element(By.TAG_NAME, "article")
+                attachment_hrefs = ["shared post"]
+            except:
+                attachment_hrefs = [
+                    a.get_attribute("href")
+                    for a in content[1].find_elements(By.TAG_NAME, "a")
+                ]
+            
+        else: attachment_hrefs = []
+        
 
         self.date, self.attachment_types = self.parse_data(raw_date, attachment_hrefs)        
         self.page_id = page_id
@@ -61,16 +70,29 @@ class PagePostMetadata:
 
 
 def parse_post_date(raw_date: str):
-    if "," not in raw_date:
-        year = str(datetime.now().year)
-        raw_date = f", {year}".join(
-            re.split(r"(?<=\d)(?= lúc)", raw_date)
-        )
-    
-    return datetime.strptime(
-        raw_date,
-        "%d tháng %m, %Y lúc %H:%M"
-    )
+    dt = datetime.now()
+    if "tháng" in raw_date:
+        if "," not in raw_date:
+            year = str(datetime.now().year)
+            raw_date = f", {year}".join(
+                re.split(r"(?<=\d)(?= lúc)", raw_date)
+            )
+        dt = datetime.strptime(raw_date, "%d tháng %m, %Y lúc %H:%M")
+    elif "phút" in raw_date:
+        minute = re.search(r"(\d{1,2}) phút", raw_date).group(1)
+        minute = int(minute)
+        dt -= timedelta(minutes=minute)
+    elif "giờ" in raw_date:
+        hour = re.search(r"(\d{1,2}) giờ", raw_date).group(1)
+        hour = int(hour)
+        dt -= timedelta(hours=hour)
+    elif "Hôm qua" in raw_date:
+        h_m_search = re.search(r"lúc (\d{1,2}):(\d{2})$", raw_date)
+        hour, minute = h_m_search.group(1), h_m_search.group(2)
+        dt -= timedelta(days=1)
+        dt.hour = hour
+        dt.minute = minute
+    return dt
 
 def parse_attachment_types(attachment_hrefs: Sequence[str]):
     return [

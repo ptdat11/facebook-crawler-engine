@@ -1,22 +1,15 @@
 import logging
+import colors
 
 class ColoredLevelFormatter(logging.Formatter):
-    grey = "\x1b[38;20m"
-    blue = "\x1b[34;20m"
-    yellow = "\x1b[33;20m"
-    red = "\x1b[31;20m"
-    bold_red = "\x1b[31;1m"
-    reset = "\x1b[0m"
-    purple = "\x1b[35;20m"
-    green = "\x1b[32;20m"
-    fmt = f"[{green}%(name)s{reset}][{{0}}%(levelname)s{reset}][{purple}%(asctime)s{reset}]: %(message)s"
+    fmt = f"[{colors._green}%(name)s{colors._reset}][{{0}}%(levelname)s{colors._reset}][{colors._purple}%(asctime)s{colors._reset}]: %(message)s"
 
     FORMATS = {
-        logging.DEBUG: fmt.format(grey),
-        logging.INFO: fmt.format(blue),
-        logging.WARNING: fmt.format(yellow),
-        logging.ERROR: fmt.format(red),
-        logging.CRITICAL: fmt.format(bold_red)
+        logging.DEBUG: fmt.format(colors._grey),
+        logging.INFO: fmt.format(colors._blue),
+        logging.WARNING: fmt.format(colors._yellow),
+        logging.ERROR: fmt.format(colors._red),
+        logging.CRITICAL: fmt.format(colors._bold_red)
     }
 
     def format(self, record):

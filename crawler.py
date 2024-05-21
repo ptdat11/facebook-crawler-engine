@@ -4,18 +4,21 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.support.ui import WebDriverWait
 
 from post import PagePostMetadata
 from pipeline import Pipeline
 from progress import Progress
 from logger import Logger
 from credentials import FacebookCookies
+import colors
 
 from typing import Iterable
 import getpass
 import numpy as np
 import time
 import sys
+import traceback
 
 total_crawler = 0
 
@@ -56,7 +59,7 @@ class Crawler(threading.Thread):
     def new_tab(self, url: str):
         self.chrome.switch_to.new_window("tab")
         self.chrome.get(url)
-        self.logger.info(f"Opened new tab to \x1b[31;1m{url}\x1b[0m")
+        self.logger.info(f"Opened new tab to {colors.grey(url)}")
 
     def sleep(self, times: int = 1):
         mean, std = self.mean_std_sleep_second
@@ -66,6 +69,9 @@ class Crawler(threading.Thread):
 
     def wait_DOM(self):
         self.chrome.implicitly_wait(self.DOM_wait_second)
+
+    def on_page_parse_error(self):
+        pass
     
     def on_start(self):
         pass
@@ -83,7 +89,9 @@ class Crawler(threading.Thread):
         while self.progress.remaining_num() > 0:
             if self.termination_event.is_set():
                 self.logger.warning("Closing due to Engine's termination")
-                # self.chrome.close()
+                for handle in self.chrome.window_handles:
+                    self.chrome.switch_to.window(handle)
+                    self.chrome.close()
                 sys.exit()
             try:
                 # Extract 1
@@ -95,10 +103,15 @@ class Crawler(threading.Thread):
                 # Add URL to history once done
                 self.progress.add_history(url)
             except:
-                # If this url hasn't been crawled successfully
+                self.on_page_parse_error()
+                exc_type, value, tb = sys.exc_info()
+                # # If this url hasn't been crawled successfully
+                self.logger.error(f"Restore {colors.grey(url)} to queue due to error \n{colors.red(exc_type.__name__)}: {value}\n{traceback.format_exc()}")
                 if not self.progress.propagated(url):
-                    # Re-append URL to queue
+                #     # Re-append URL to queue
                     self.progress.enqueue(url, "left")
+                    if self.termination_event.is_set():
+                        break
 
         self.logger.info("Closing driver due to no URL left in queue")
         self.chrome.close()
@@ -141,6 +154,9 @@ class FacebookPageCrawler(Crawler):
                 self.chrome.add_cookie(cookie)
         self.sleep()
     
+    def on_page_parse_error(self):
+        pass
+    
     def login(self):
         self.chrome.get("https://mbasic.facebook.com")
         self.sleep()
@@ -149,8 +165,8 @@ class FacebookPageCrawler(Crawler):
         email_input = self.chrome.find_element(By.NAME, "email")
         pass_input = self.chrome.find_element(By.NAME, "pass")
 
-        email = input("\x1b[31;1mEnter email:\x1b[0m")
-        password = getpass.getpass("\x1b[31;1mEnter password:\x1b[0m")
+        email = input(colors.bold("Your email:"))
+        password = getpass.getpass(colors.bold("Enter password:"))
 
         # Fill the form
         email_input.send_keys(email)
@@ -172,12 +188,21 @@ class FacebookPageCrawler(Crawler):
         self.chrome.get(url)
         self.wait_DOM()
         self.sleep()
-        posts: list[WebElement] = self.chrome.find_elements(By.TAG_NAME, "article")
+        self.logger.info(f"Begin parsing {colors.grey(url)}")
+        container = self.chrome.find_element(By.ID, "structured_composer_async_container")
+        
+        posts: list[WebElement] = (
+            container
+            .find_element(By.TAG_NAME, "section")
+            .find_elements(By.XPATH, "article")
+        )
         current_tab_handle = self.chrome.current_window_handle
+        self.logger.info("Extracted posts successfully")
 
         data = []
-        for post in posts:
+        for i, post in enumerate(posts):
             metadata = PagePostMetadata(post)
+            self.logger.info("Extracted metadata for {0} post".format(colors.bold(str(i+1)+"th")))
 
             # If this post contains image(s), go to new tab and crawl
             if (
@@ -202,7 +227,7 @@ class FacebookPageCrawler(Crawler):
                 self.chrome.close()
                 self.chrome.switch_to.window(current_tab_handle)
 
-        next_page_el: WebElement = self.chrome.find_element(By.ID, "structured_composer_async_container").find_element(By.XPATH, "div")
+        next_page_el: WebElement = container.find_element(By.XPATH, "div")
         next_page_el: WebElement = next_page_el.find_element(By.TAG_NAME, "a")
         next_page_link = next_page_el.get_attribute("href") \
                         if next_page_el is not None \
