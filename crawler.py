@@ -9,10 +9,13 @@ from post import PagePostMetadata
 from pipeline import Pipeline
 from progress import Progress
 from logger import Logger
+from credentials import FacebookCookies
 
 from typing import Iterable
+import getpass
 import numpy as np
 import time
+import sys
 
 total_crawler = 0
 
@@ -22,6 +25,7 @@ class Crawler(threading.Thread):
     """
     def __init__(
         self,
+        termination_event: threading.Event,
         progress: Progress,
         data_pipeline: Pipeline,
         name: str | None = None,
@@ -36,6 +40,7 @@ class Crawler(threading.Thread):
             name = f"Crawler-{total_crawler}"
         super().__init__(None, self, name, *thread_args, **thread_kwargs)
 
+        self.termination_event = termination_event
         self.logger = Logger(name)
         self.progress = progress
         self.data_pipeline = data_pipeline
@@ -51,6 +56,7 @@ class Crawler(threading.Thread):
     def new_tab(self, url: str):
         self.chrome.switch_to.new_window("tab")
         self.chrome.get(url)
+        self.logger.info(f"Opened new tab to \x1b[31;1m{url}\x1b[0m")
 
     def sleep(self, times: int = 1):
         mean, std = self.mean_std_sleep_second
@@ -75,6 +81,10 @@ class Crawler(threading.Thread):
         self.on_start()
         # If there exists URLs in queue
         while self.progress.remaining_num() > 0:
+            if self.termination_event.is_set():
+                self.logger.warning("Closing due to Engine's termination")
+                # self.chrome.close()
+                sys.exit()
             try:
                 # Extract 1
                 url = self.progress.next_url()
@@ -90,13 +100,17 @@ class Crawler(threading.Thread):
                     # Re-append URL to queue
                     self.progress.enqueue(url, "left")
 
+        self.logger.info("Closing driver due to no URL left in queue")
+        self.chrome.close()
+
+
 class FacebookPageCrawler(Crawler):
     def __init__(
         self, 
-        email: str,
-        password: str,
+        termination_event: threading.Event,
         progress: Progress,
         data_pipeline: Pipeline,
+        cookies_dir: str = "./fb-cookies",
         name: str | None = None,
         mean_std_sleep_second: tuple[float, float] = (6, 1),
         DOM_wait_second: float = 60,
@@ -104,6 +118,7 @@ class FacebookPageCrawler(Crawler):
         thread_kwargs: dict = {}
     ) -> None:
         super().__init__(
+            termination_event=termination_event,
             progress=progress,
             data_pipeline=data_pipeline,
             name=name,
@@ -112,12 +127,18 @@ class FacebookPageCrawler(Crawler):
             thread_args=thread_args, 
             thread_kwargs=thread_kwargs
         )
-
-        self.email = email
-        self.password = password
+        self.cookies = FacebookCookies(cookies_dir)
         
     def on_start(self):
-        self.login()
+        if not self.cookies.exists():
+            self.login()
+
+            cookies = self.chrome.get_cookies()
+            self.cookies.save(cookies)
+        else:
+            self.chrome.get("https://mbasic.facebook.com")
+            for cookie in self.cookies.load():
+                self.chrome.add_cookie(cookie)
         self.sleep()
     
     def login(self):
@@ -128,10 +149,13 @@ class FacebookPageCrawler(Crawler):
         email_input = self.chrome.find_element(By.NAME, "email")
         pass_input = self.chrome.find_element(By.NAME, "pass")
 
+        email = input("\x1b[31;1mEnter email:\x1b[0m")
+        password = getpass.getpass("\x1b[31;1mEnter password:\x1b[0m")
+
         # Fill the form
-        email_input.send_keys(self.email)
+        email_input.send_keys(email)
         pass_input.click()
-        pass_input.send_keys(self.password)
+        pass_input.send_keys(password)
 
         # Submit form
         login_btn = self.chrome.find_element(By.NAME, "login")

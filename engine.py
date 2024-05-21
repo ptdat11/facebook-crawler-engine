@@ -4,6 +4,7 @@ from progress import Progress
 from logger import Logger
 
 from typing import Sequence, Type
+import threading
 
 class Engine:
     def __init__(
@@ -21,11 +22,13 @@ class Engine:
         for url in set(start_urls).difference(self.progress.queue):
             self.progress.enqueue(url, "left")
 
+        self.termination_event = threading.Event()
         self.data_pipeline = data_pipeline
 
         self.num_crawlers = num_crawlers
         self.crawlers = [
             crawler_type(
+                termination_event=self.termination_event,
                 progress=self.progress,
                 data_pipeline=data_pipeline,
                 name=name_format.format(i+1),
@@ -35,10 +38,12 @@ class Engine:
         ]
 
     def run(self):
-        for crawler in self.crawlers:
-            crawler.start()
-        for crawler in self.crawlers:
-            crawler.join()
-
-        self.logger.warn("Saving progress on termination")
-        self.progress.save()
+        try:
+            for crawler in self.crawlers:
+                crawler.start()
+            for crawler in self.crawlers:
+                crawler.join()
+        finally:
+            self.termination_event.set()
+            self.logger.warn("Saving progress on termination")
+            self.progress.save()

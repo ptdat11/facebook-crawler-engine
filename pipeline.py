@@ -1,6 +1,9 @@
+from selenium import webdriver
 from pandas import DataFrame
 from typing import Sequence, Callable, Any
 import os
+
+from credentials import FacebookCookies
 
 
 class Pipeline:
@@ -21,6 +24,25 @@ class Pipeline:
     
     def add(self, step: Callable[[Any], Any]):
         self.steps.append(step)
+
+
+class SaveCookies:
+    def __init__(
+        self,
+        chrome_driver: webdriver.Chrome,
+        cookies_manager: FacebookCookies
+    ) -> None:
+        self.chrome = chrome_driver
+        self.cookies_mngr = cookies_manager
+    
+    def __call__(
+        self, 
+        data: Any
+    ) -> Any:
+        cookies = self.chrome.get_cookies()
+        self.cookies_mngr.save(cookies)
+        
+        return data
 
 
 class SaveAsCSV:

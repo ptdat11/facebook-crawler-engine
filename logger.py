@@ -9,14 +9,14 @@ class ColoredLevelFormatter(logging.Formatter):
     reset = "\x1b[0m"
     purple = "\x1b[35;20m"
     green = "\x1b[32;20m"
-    fmt = "[{2}%(name)s{1}][{0}%(levelname)s{1}][{3}%(asctime)s{1}]: %(message)s"
+    fmt = f"[{green}%(name)s{reset}][{{0}}%(levelname)s{reset}][{purple}%(asctime)s{reset}]: %(message)s"
 
     FORMATS = {
-        logging.DEBUG: fmt.format(grey, reset, green, purple),
-        logging.INFO: fmt.format(blue, reset, green, purple),
-        logging.WARNING: fmt.format(yellow, reset, green, purple),
-        logging.ERROR: fmt.format(red, reset, green, purple),
-        logging.CRITICAL: fmt.format(bold_red, reset, green, purple)
+        logging.DEBUG: fmt.format(grey),
+        logging.INFO: fmt.format(blue),
+        logging.WARNING: fmt.format(yellow),
+        logging.ERROR: fmt.format(red),
+        logging.CRITICAL: fmt.format(bold_red)
     }
 
     def format(self, record):

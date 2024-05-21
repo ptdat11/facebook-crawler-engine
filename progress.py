@@ -9,10 +9,10 @@ class Progress:
         self,
         dir_path: str = "./progress"
     ) -> None:
-        dir_path = pathlib.Path(dir_path)
-        self.progress_dir = dir_path
-        self.history_path = pathlib.Path.joinpath(dir_path, "history.txt")
-        self.queue_path = pathlib.Path.joinpath(dir_path, "queue.txt")
+        dir = pathlib.Path(dir_path)
+        self.progress_dir = dir
+        self.history_path = dir.joinpath("history.txt")
+        self.queue_path = dir.joinpath("queue.txt")
 
         self.history, self.queue = self.load()
     

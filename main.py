@@ -1,10 +1,6 @@
 from engine import Engine
 from crawler import FacebookPageCrawler
 from pipeline import Pipeline, SaveAsCSV
-import getpass
-
-email = "ptdat01012003@outlook.com"
-pw = getpass.getpass()
 
 page_ids = [
     "ThoBayMau",
@@ -22,10 +18,10 @@ engine = Engine(
     start_urls=[f"https://mbasic.facebook.com/{id}?v=timeline" for id in page_ids],
     data_pipeline=data_pipeline,
     progress_dir="./progress-1",
+    num_crawlers=2,
     name_format="Facebook Crawler-{0}",
     crawler_kwargs={
-        "email": email,
-        "password": pw
+
     }
 )
 engine.run()

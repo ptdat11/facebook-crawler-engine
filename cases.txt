@@ -1,5 +1,0 @@
-- No attachment (body has 1 div)
-- Images (body's 2nd div has <a href="/photo.php">)
-- Video (body's 2nd div has <a href="/video_redirect">)
-- External link (body's 2nd div has <a href="https://lm.facebook.com/l.php">)
-- Shared post 
