@@ -221,7 +221,7 @@ class FacebookPageCrawler(Crawler):
         data = []
         for i, post in enumerate(posts):
             metadata = PagePostMetadata(post)
-            self.logger.info("Extracted metadata for {0} post".format(colors.bold(str(i+1)+"th")))
+            # self.logger.info("Extracted metadata for {0} post".format(colors.bold(str(i+1)+"th")))
 
             # If this post contains image(s), go to new tab and crawl
             if (
