@@ -35,7 +35,7 @@ class Progress:
     
     def save(self):
         if not self.progress_dir.is_dir():
-            os.mkdir(self.progress_dir)
+            os.makedirs(self.progress_dir, exist_ok=True)
 
         with open(self.history_path, "w") as f_hist, open(self.queue_path, "w") as f_queue:
             f_hist.writelines("\n".join(self.history))

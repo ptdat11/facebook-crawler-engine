@@ -4,6 +4,7 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.remote.remote_connection import LOGGER
 
 from post import PagePostMetadata
 from pipeline import Pipeline
@@ -14,12 +15,14 @@ import colors
 
 from typing import Iterable
 import re
+import logging
 import getpass
 import numpy as np
 import time
 import sys
 import traceback
 
+LOGGER.setLevel(logging.CRITICAL)
 total_crawler = 0
 
 class Crawler(threading.Thread):
@@ -54,8 +57,17 @@ class Crawler(threading.Thread):
         self.driver_manager = ChromeDriverManager(latest_release_url="https://storage.googleapis.com/chrome-for-testing-public/125.0.6422.60/linux64/chrome-linux64.zip").install()
         self.driver_service = Service(self.driver_manager)
         self.driver_options = webdriver.ChromeOptions()
+        # Options
         self.driver_options.add_experimental_option("detach", True)
+        # self.driver_options.add_experimental_option(
+        #     "prefs", {"profile.managed_default_content_settings.images": 2}
+        # )
 
+    def start_driver(self):
+        self.chrome = webdriver.Chrome(service=self.driver_service, options=self.driver_options)
+        self.main_tab = self.chrome.current_window_handle
+        self.logger.info(f"Driver started")
+    
     def new_tab(self, url: str):
         self.chrome.switch_to.new_window("tab")
         self.chrome.get(url)
@@ -67,16 +79,21 @@ class Crawler(threading.Thread):
         sleep_second = np.clip(sleep_second, a_min=0, a_max=mean+3*std).sum()
         time.sleep(sleep_second)
 
+    def wait_DOM(self):
+        self.chrome.implicitly_wait(self.DOM_wait_second)
+
     def close_all(self):
         for handle in self.chrome.window_handles:
             self.chrome.switch_to.window(handle)
             self.chrome.close()
-
-    def wait_DOM(self):
-        self.chrome.implicitly_wait(self.DOM_wait_second)
-
-    def on_page_parse_error(self):
-        pass
+    
+    def close_all_new_tabs(self):
+        for handle in self.chrome.window_handles:
+            if handle == self.main_tab:
+                continue
+            self.chrome.switch_to.window(handle)
+            self.chrome.close()
+        self.chrome.switch_to.window(self.main_tab)
     
     def on_start(self):
         pass
@@ -86,32 +103,23 @@ class Crawler(threading.Thread):
     
     def parse(self, url: str):
         pass
-    
+
+    def on_page_parse_error(self):
+        self.close_all_new_tabs()
+
     def run(self):
-        self.chrome = webdriver.Chrome(service=self.driver_service, options=self.driver_options)
-        self.logger.info(f"Driver started")
-
-        # What to do before crawling
+        self.start_driver()
         self.on_start()
-        # If there exists URLs in queue
+
         while self.progress.remaining_num() > 0:
+            if self.termination_event.is_set():
+                self.logger.warning("Closing due to Engine's termination")
+                break
             try:
-                # Listen to the Engine for exit signal
-                if self.termination_event.is_set():
-                    self.logger.warning("Closing due to Engine's termination")
-                    # Close all tab
-                    self.close_all()
-
-                    self.on_exit()
-                    sys.exit()
-
-                # Next URL
+                # Extract data -> Pipeline -> Add history
                 url = self.progress.next_url()
-                # Get data
                 data = self.parse(url)
-                # Put data into Pipeline for whatever task
                 self.data_pipeline(data)
-                # Add URL to history once done
                 self.progress.add_history(url)
             except:
                 self.on_page_parse_error()
@@ -120,14 +128,16 @@ class Crawler(threading.Thread):
                 exc_type, value, tb = sys.exc_info()
                 self.logger.error(f"Restore {colors.grey(url)} to queue due to error: \n{colors.red(exc_type.__name__)}: {value}\n{traceback.format_exc()}")
 
-                # # If this url hasn't been crawled successfully
+                # If this url hasn't been crawled successfully
                 if not self.progress.propagated(url):
-                #     # Re-append URL to queue
+                    # Re-append URL to queue
                     self.progress.enqueue(url, "left")
-                    if self.termination_event.is_set():
-                        break
 
-        self.logger.info("Closing driver due to no URL left in queue")
+        if not self.termination_event.is_set():
+            self.logger.info("Closing driver due to no URL left in queue")
+        else:
+            self.logger.info("Exitting")
+        self.on_exit()
         self.close_all()
 
 
@@ -215,8 +225,7 @@ class FacebookPageCrawler(Crawler):
             .find_element(By.TAG_NAME, "section")
             .find_elements(By.XPATH, "article")
         )
-        current_tab_handle = self.chrome.current_window_handle
-        self.logger.info("{0} extracted successfully".format(colors.bold(str(len(posts)))))
+        self.logger.info("{0} posts located successfully".format(colors.bold(str(len(posts)))))
 
         data = []
         for i, post in enumerate(posts):
@@ -243,8 +252,7 @@ class FacebookPageCrawler(Crawler):
                 data.append(sample)
 
                 self.progress.add_history(metadata.post_url)
-                self.chrome.close()
-                self.chrome.switch_to.window(current_tab_handle)
+                self.close_all_new_tabs()
 
         next_page_el: WebElement = container.find_element(By.XPATH, "div")
         next_page_el: WebElement = next_page_el.find_element(By.TAG_NAME, "a")
@@ -260,6 +268,8 @@ class FacebookPageCrawler(Crawler):
         self.sleep()
         html_divs = self.chrome.find_elements(By.CLASS_NAME, "html-div")
         text_div, img_div = html_divs[8].find_elements(By.XPATH, "div")
+        img_div = img_div.find_element(By.XPATH, "div")
+
         text = self.parse_post_text(text_div)
         images = "   ".join([
             img.get_attribute("src")

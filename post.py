@@ -12,7 +12,7 @@ HREF_TYPE: dict[str, Literal["image", "video", "link"]] = {
     "/video_redirect/": "video",
     "/l.php": "link",
     "shared post": "shared post",
-    "avatar": "avatar"
+    "avatar / background": "avatar / background"
 }
 
 class PagePostMetadata:
@@ -38,8 +38,8 @@ class PagePostMetadata:
             attachment_element = attachment_element.find_element(By.XPATH, "//*")
             if attachment_element.tag_name == "article":
                 attachment_hrefs = ["shared post"]
-            elif "đã cập nhật ảnh đại diện của mình." in page_name_h3.text:
-                attachment_hrefs = ["avatar"]
+            elif "đã cập nhật" in page_name_h3.text:
+                attachment_hrefs = ["avatar / background"]
             else:
                 attachment_hrefs = [
                     a.get_attribute("href")
@@ -95,8 +95,7 @@ def parse_post_date(raw_date: str):
         h_m_search = re.search(r"lúc (\d{1,2}):(\d{2})$", raw_date)
         hour, minute = h_m_search.group(1), h_m_search.group(2)
         dt -= timedelta(days=1)
-        dt.hour = hour
-        dt.minute = minute
+        dt.replace(hour=int(hour), minute=int(minute))
     return dt
 
 def parse_attachment_types(attachment_hrefs: Sequence[str]):
