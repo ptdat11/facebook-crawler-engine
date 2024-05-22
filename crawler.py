@@ -67,6 +67,11 @@ class Crawler(threading.Thread):
         sleep_second = np.clip(sleep_second, a_min=0, a_max=mean+3*std).sum()
         time.sleep(sleep_second)
 
+    def close_all(self):
+        for handle in self.chrome.window_handles:
+            self.chrome.switch_to.window(handle)
+            self.chrome.close()
+
     def wait_DOM(self):
         self.chrome.implicitly_wait(self.DOM_wait_second)
 
@@ -74,6 +79,9 @@ class Crawler(threading.Thread):
         pass
     
     def on_start(self):
+        pass
+
+    def on_exit(self):
         pass
     
     def parse(self, url: str):
@@ -87,14 +95,17 @@ class Crawler(threading.Thread):
         self.on_start()
         # If there exists URLs in queue
         while self.progress.remaining_num() > 0:
-            if self.termination_event.is_set():
-                self.logger.warning("Closing due to Engine's termination")
-                for handle in self.chrome.window_handles:
-                    self.chrome.switch_to.window(handle)
-                    self.chrome.close()
-                sys.exit()
             try:
-                # Extract 1
+                # Listen to the Engine for exit signal
+                if self.termination_event.is_set():
+                    self.logger.warning("Closing due to Engine's termination")
+                    # Close all tab
+                    self.close_all()
+
+                    self.on_exit()
+                    sys.exit()
+
+                # Next URL
                 url = self.progress.next_url()
                 # Get data
                 data = self.parse(url)
@@ -104,9 +115,12 @@ class Crawler(threading.Thread):
                 self.progress.add_history(url)
             except:
                 self.on_page_parse_error()
+
+                # Logging out error
                 exc_type, value, tb = sys.exc_info()
+                self.logger.error(f"Restore {colors.grey(url)} to queue due to error: \n{colors.red(exc_type.__name__)}: {value}\n{traceback.format_exc()}")
+
                 # # If this url hasn't been crawled successfully
-                self.logger.error(f"Restore {colors.grey(url)} to queue due to error \n{colors.red(exc_type.__name__)}: {value}\n{traceback.format_exc()}")
                 if not self.progress.propagated(url):
                 #     # Re-append URL to queue
                     self.progress.enqueue(url, "left")
@@ -114,7 +128,7 @@ class Crawler(threading.Thread):
                         break
 
         self.logger.info("Closing driver due to no URL left in queue")
-        self.chrome.close()
+        self.close_all()
 
 
 class FacebookPageCrawler(Crawler):
@@ -141,6 +155,9 @@ class FacebookPageCrawler(Crawler):
             thread_kwargs=thread_kwargs
         )
         self.cookies = FacebookCookies(cookies_dir)
+
+    def on_page_parse_error(self):
+        pass
         
     def on_start(self):
         if not self.cookies.exists():
@@ -154,8 +171,10 @@ class FacebookPageCrawler(Crawler):
                 self.chrome.add_cookie(cookie)
         self.sleep()
     
-    def on_page_parse_error(self):
-        pass
+    def on_exit(self):
+        cookies = self.chrome.get_cookies()
+        self.cookies.save(cookies)
+        self.logger.info("Saved cookies")
     
     def login(self):
         self.chrome.get("https://mbasic.facebook.com")
@@ -197,12 +216,12 @@ class FacebookPageCrawler(Crawler):
             .find_elements(By.XPATH, "article")
         )
         current_tab_handle = self.chrome.current_window_handle
-        self.logger.info("Extracted posts successfully")
+        self.logger.info("{0} extracted successfully".format(colors.bold(str(len(posts)))))
 
         data = []
         for i, post in enumerate(posts):
             metadata = PagePostMetadata(post)
-            # self.logger.info("Extracted metadata for {0} post".format(colors.bold(str(i+1)+"th")))
+            self.logger.info("Extracted metadata for {0} post".format(colors.bold(str(i+1)+"th")))
 
             # If this post contains image(s), go to new tab and crawl
             if (

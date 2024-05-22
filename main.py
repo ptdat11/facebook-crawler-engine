@@ -22,7 +22,7 @@ engine = Engine(
     num_crawlers=2,
     name_format="Crawler-{0}",
     crawler_kwargs={
-        "mean_std_sleep_second": (6, 1),
+        "mean_std_sleep_second": (8, 1),
         "DOM_wait_second": 90,
     }
 )
