@@ -4,7 +4,6 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.support.ui import WebDriverWait
 
 from post import PagePostMetadata
 from pipeline import Pipeline
@@ -14,6 +13,7 @@ from credentials import FacebookCookies
 import colors
 
 from typing import Iterable
+import re
 import getpass
 import numpy as np
 import time
@@ -260,9 +260,16 @@ class FacebookPageCrawler(Crawler):
         self.sleep()
         html_divs = self.chrome.find_elements(By.CLASS_NAME, "html-div")
         text_div, img_div = html_divs[8].find_elements(By.XPATH, "div")
-        text = text_div.text
+        text = self.parse_post_text(text_div)
         images = "   ".join([
             img.get_attribute("src")
             for img in img_div.find_elements(By.TAG_NAME, "img")
         ])
         return text, images
+    
+    def parse_post_text(self, text_div: WebElement):
+        text = text_div.get_attribute("innerHTML")
+        text = re.sub(r"(<img[^>]*alt=\"([^\"]+)\")[^>]*>", r"\2", text)
+        text = re.sub(r"(?<=</div>)()(?=<div)", r"\n", text)
+        text = re.sub(r"<.*?>", "", text)
+        return text
