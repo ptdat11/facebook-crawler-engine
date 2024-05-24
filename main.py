@@ -11,7 +11,6 @@ attempt_name = "_".join(page_ids)
 data_pipeline = Pipeline(
     SaveAsCSV(
         f"./data/{attempt_name}/{attempt_name}.csv",
-        columns=["page_id", "post_id", "post_url", "datetime", "text", "images"]
     )
 )
 

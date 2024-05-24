@@ -4,7 +4,7 @@
 
 1. Set your Facebook default language as Vietnamese.
 2. Disable auto-translation in your Facebook settings.
-3. (Optional) Connect to a strong network.
+3. (Optional) Connection to a strong network.
 
 ## Engine Architecture
 

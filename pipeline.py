@@ -49,16 +49,17 @@ class SaveAsCSV:
     def __init__(
         self,
         path: str,
-        columns: Sequence[str],
     ) -> None:
         self.path = path
-        self.columns = columns
 
     def __call__(
         self,
-        data: Any
+        data: dict[str, Any]
     ) -> Any:
-        df = DataFrame(data, columns=self.columns)
+        if not isinstance(data, Sequence):
+            data = [data]
+        df = DataFrame(data)
+
         df.to_csv(
             self.path,
             index=False,

@@ -4,6 +4,8 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.remote.remote_connection import LOGGER
 
 from post import PagePostMetadata
@@ -13,7 +15,7 @@ from logger import Logger
 from credentials import FacebookCookies
 import colors
 
-from typing import Iterable
+from typing import Literal
 import re
 import logging
 import getpass
@@ -37,7 +39,7 @@ class Crawler(threading.Thread):
         name: str | None = None,
         mean_std_sleep_second: tuple[float, float] = (10, 1),
         DOM_wait_second: float = 90,
-        thread_args: Iterable = (),
+        thread_args: tuple = (),
         thread_kwargs: dict = {}
     ):
         global total_crawler
@@ -46,7 +48,7 @@ class Crawler(threading.Thread):
             name = f"Crawler-{total_crawler}"
         super().__init__(None, self, name, *thread_args, **thread_kwargs)
 
-        self.termination_event = termination_event
+        self.termination_flag = termination_event
         self.logger = Logger(name)
         self.progress = progress
         self.data_pipeline = data_pipeline
@@ -54,20 +56,12 @@ class Crawler(threading.Thread):
         self.mean_std_sleep_second = mean_std_sleep_second
         self.DOM_wait_second = DOM_wait_second
 
-        self.driver_manager = ChromeDriverManager(latest_release_url="https://storage.googleapis.com/chrome-for-testing-public/125.0.6422.60/linux64/chrome-linux64.zip").install()
+        self.driver_manager = ChromeDriverManager(latest_release_url="https://storage.googleapis.com/chrome-for-testing-public/125.0.6422.112/linux64/chrome-linux64.zip").install()
         self.driver_service = Service(self.driver_manager)
         self.driver_options = webdriver.ChromeOptions()
         # Options
         self.driver_options.add_experimental_option("detach", True)
-        # self.driver_options.add_experimental_option(
-        #     "prefs", {"profile.managed_default_content_settings.images": 2}
-        # )
 
-    def start_driver(self):
-        self.chrome = webdriver.Chrome(service=self.driver_service, options=self.driver_options)
-        self.main_tab = self.chrome.current_window_handle
-        self.logger.info(f"Driver started")
-    
     def new_tab(self, url: str):
         self.chrome.switch_to.new_window("tab")
         self.chrome.get(url)
@@ -82,11 +76,6 @@ class Crawler(threading.Thread):
     def wait_DOM(self):
         self.chrome.implicitly_wait(self.DOM_wait_second)
 
-    def close_all(self):
-        for handle in self.chrome.window_handles:
-            self.chrome.switch_to.window(handle)
-            self.chrome.close()
-    
     def close_all_new_tabs(self):
         for handle in self.chrome.window_handles:
             if handle == self.main_tab:
@@ -94,51 +83,59 @@ class Crawler(threading.Thread):
             self.chrome.switch_to.window(handle)
             self.chrome.close()
         self.chrome.switch_to.window(self.main_tab)
+
+    def start_driver(self):
+        self.chrome = webdriver.Chrome(service=self.driver_service, options=self.driver_options)
+        self.main_tab = self.chrome.current_window_handle
+        self.logger.info(f"Driver started")
+    
+    def exit(self):
+        if self.termination_flag.is_set():
+            self.logger.info("Closing due to Engine's termination")
+        else:
+            self.logger.info("Closing driver due to no URL left in queue")
+        self.on_exit()
+        self.chrome.quit()
     
     def on_start(self):
         pass
-
+    
     def on_exit(self):
         pass
     
     def parse(self, url: str):
         pass
 
-    def on_page_parse_error(self):
-        self.close_all_new_tabs()
+    def on_parse_error(self):
+        pass
 
     def run(self):
         self.start_driver()
         self.on_start()
 
-        while self.progress.remaining_num() > 0:
-            if self.termination_event.is_set():
-                self.logger.warning("Closing due to Engine's termination")
-                break
+        while (
+            self.progress.remaining_num() > 0 
+            and not self.termination_flag.is_set()
+        ):
             try:
                 # Extract data -> Pipeline -> Add history
                 url = self.progress.next_url()
+                self.logger.info(f"Begin parsing {colors.grey(url)}")
                 data = self.parse(url)
                 self.data_pipeline(data)
-                self.progress.add_history(url)
+                self.progress.add_history(url) 
+                self.sleep()
             except:
-                self.on_page_parse_error()
-
                 # Logging out error
                 exc_type, value, tb = sys.exc_info()
                 self.logger.error(f"Restore {colors.grey(url)} to queue due to error: \n{colors.red(exc_type.__name__)}: {value}\n{traceback.format_exc()}")
-
                 # If this url hasn't been crawled successfully
                 if not self.progress.propagated(url):
                     # Re-append URL to queue
                     self.progress.enqueue(url, "left")
 
-        if not self.termination_event.is_set():
-            self.logger.info("Closing driver due to no URL left in queue")
-        else:
-            self.logger.info("Exitting")
-        self.on_exit()
-        self.close_all()
+                self.on_parse_error()
+        self.exit()
 
 
 class FacebookPageCrawler(Crawler):
@@ -149,9 +146,10 @@ class FacebookPageCrawler(Crawler):
         data_pipeline: Pipeline,
         cookies_dir: str = "./fb-cookies",
         name: str | None = None,
+        comment_load_num: int = 300,
         mean_std_sleep_second: tuple[float, float] = (6, 1),
         DOM_wait_second: float = 60,
-        thread_args: Iterable = (),
+        thread_args: tuple = (),
         thread_kwargs: dict = {}
     ) -> None:
         super().__init__(
@@ -164,27 +162,32 @@ class FacebookPageCrawler(Crawler):
             thread_args=thread_args, 
             thread_kwargs=thread_kwargs
         )
+        self.cmt_load_num = comment_load_num
         self.cookies = FacebookCookies(cookies_dir)
 
-    def on_page_parse_error(self):
-        pass
+    def on_parse_error(self):
+        if not self.termination_flag.is_set():
+            self.close_all_new_tabs()
         
     def on_start(self):
+        # If local doesn't have cookies
         if not self.cookies.exists():
             self.login()
 
             cookies = self.chrome.get_cookies()
             self.cookies.save(cookies)
+            self.logger.info("Saved current cookies for future Facebook access")
+        # If local has already stored cookies
         else:
             self.chrome.get("https://mbasic.facebook.com")
             for cookie in self.cookies.load():
                 self.chrome.add_cookie(cookie)
+
+            # Refresh cookies
+            self.chrome.refresh()
+            self.cookies.save(self.chrome.get_cookies())
+            self.logger.info("Refreshed cookies")
         self.sleep()
-    
-    def on_exit(self):
-        cookies = self.chrome.get_cookies()
-        self.cookies.save(cookies)
-        self.logger.info("Saved cookies")
     
     def login(self):
         self.chrome.get("https://mbasic.facebook.com")
@@ -217,7 +220,6 @@ class FacebookPageCrawler(Crawler):
         self.chrome.get(url)
         self.wait_DOM()
         self.sleep()
-        self.logger.info(f"Begin parsing {colors.grey(url)}")
         container = self.chrome.find_element(By.ID, "structured_composer_async_container")
         
         posts: list[WebElement] = (
@@ -225,7 +227,7 @@ class FacebookPageCrawler(Crawler):
             .find_element(By.TAG_NAME, "section")
             .find_elements(By.XPATH, "article")
         )
-        self.logger.info("{0} posts located successfully".format(colors.bold(str(len(posts)))))
+        self.logger.info("Located {0} posts".format(colors.bold(str(len(posts)))))
 
         data = []
         for i, post in enumerate(posts):
@@ -239,8 +241,9 @@ class FacebookPageCrawler(Crawler):
                 and not self.progress.propagated(metadata.post_url)
             ):
                 self.new_tab(metadata.post_url)
-                text, images = self.parse_post()
 
+                self.logger.info("Parsing post's content...")
+                text, images = self.parse_post()
                 sample = {
                     "page_id": metadata.page_id,
                     "post_id": metadata.post_id,
@@ -250,6 +253,21 @@ class FacebookPageCrawler(Crawler):
                     "images": images
                 }
                 data.append(sample)
+
+                self.logger.info("Parsing comments...")
+                cmt_data = self.parse_comments()
+                cmt_data = [
+                    {
+                        "page_id": metadata.page_id,
+                        "post_id": metadata.post_id,
+                        "post_url": metadata.post_url,
+                        "datetime": metadata.date,
+                        "text": cmt["text"],
+                        "images": cmt["image"]
+                    }
+                    for cmt in cmt_data
+                ]
+                data.extend(cmt_data)
 
                 self.progress.add_history(metadata.post_url)
                 self.close_all_new_tabs()
@@ -270,16 +288,131 @@ class FacebookPageCrawler(Crawler):
         text_div, img_div = html_divs[8].find_elements(By.XPATH, "div")
         img_div = img_div.find_element(By.XPATH, "div")
 
-        text = self.parse_post_text(text_div)
+        text = self.parse_text(text_div)
         images = "   ".join([
             img.get_attribute("src")
             for img in img_div.find_elements(By.TAG_NAME, "img")
         ])
         return text, images
     
-    def parse_post_text(self, text_div: WebElement):
-        text = text_div.get_attribute("innerHTML")
+    def parse_comments(self):
+        self.cmt_show_mode("all")
+        self.wait_DOM()
+        self.sleep()
+        # self.show_all_replies()
+
+        data = []
+        comments = self.chrome.find_elements(By.CSS_SELECTOR, "div.x1r8uery.x1iyjqo2.x6ikm8r.x10wlt62.x1pi30zi")
+        self.logger.info(f"Found {len(comments)} comments")
+        for i, comment in enumerate(comments):
+            attachment_type = self.extract_cmt_attachment_type(comment)
+            self.logger.info(f"Processing comment {i+1} of {len(comments)}: {attachment_type}")
+            if attachment_type == "image":
+                text_div = (
+                    comment
+                    .find_element(By.CSS_SELECTOR, "div")
+                    .find_element(By.CSS_SELECTOR, "div")
+                    .find_element(By.CSS_SELECTOR, "div")
+                    .find_element(By.CSS_SELECTOR, "div")
+                )
+                try:
+                    text.find_element(By.CSS_SELECTOR, "div.xdj266r.x11i5rnm.xat24cr.x1mh8g0r.x1vvkbs")
+                except: 
+                    self.logger.warning("No text found")
+                    continue
+                img = comment.find_element(By.TAG_NAME, "div.x78zum5.xv55zj0.x1vvkbs").find_element(By.CSS_SELECTOR, "img.xz74otr")
+                
+                text = self.parse_text(text_div)
+                img_src = img.get_attribute("src")
+
+                data.append({
+                    "text": text,
+                    "image": img_src
+                })
+        return data
+
+    def cmt_show_mode(self, mode: Literal["newest", "most relevant", "all"] = "all"):
+        mode = {
+            "newest": 1,
+            "most relevant": 2,
+            "all": 3
+        }[mode]
+        WebDriverWait(self.chrome, self.mean_std_sleep_second[0]) \
+            .until(EC.element_to_be_clickable(
+                (By.XPATH, "//div[@class='x9f619 x1n2onr6 x1ja2u2z xt0psk2 xuxw1ft']")
+            )).click()
+        WebDriverWait(
+            self.chrome.find_element(By.XPATH, "//div[@class='x4k7w5x x1h91t0o x1beo9mf xaigb6o x12ejxvf x3igimt xarpa2k xedcshv x1lytzrv x1t2pt76 x7ja8zs x1n2onr6 x1qrby5j x1jfb8zj']"),
+            self.mean_std_sleep_second[0]
+        ) .until(EC.element_to_be_clickable(
+            (By.XPATH, f"(//div[@role='menuitem'])[{mode}]")
+        )).click()
+    
+    def show_all_replies(self):
+        cnt = 0
+        while cnt <= self.cmt_load_num:
+            all_replied_comments = self.chrome.find_elements(By.XPATH, "//div[contains(@class, 'x1n2onr6 x46jau6')]")
+            if len(all_replied_comments) == 0:
+                break
+
+            for comment in all_replied_comments:
+                cnt += 1
+                self.chrome.execute_script("window.scrollBy(0, -50);")  # Cuộn lên 50 dòng
+                try:
+                    view_more_buttons = WebDriverWait(comment, 5).until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class, 'x78zum5 x1iyjqo2 x21xpn4 x1n2onr6')]")))
+                    view_more_buttons.click()
+                    for sub_cmt in comment:
+                        try:
+                            view_more_sub_buttons = WebDriverWait(sub_cmt, 5).until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class, 'x78zum5 x1iyjqo2 x21xpn4 x1n2onr6')]")))
+                            view_more_sub_buttons.click()
+                        except:
+                            break
+                except Exception as e:
+                    break
+    
+    def extract_cmt_attachment_type(self, cmt_div: WebElement):
+        # Sticker: img, xz74otr x1uzojwf x10e4vud xa4qsjk xoj058f x1nxgg22 x10l6tqk x17qophe x13vifvy
+        # Image: img, xz74otr
+        # Video: video, x1lliihq x5yr21d xh8yej3
+        # GIF: div, x1i10hfl x1ypdohk xe8uvvx x1hl2dhg xggy1nq x1o1ewxj x3x9cwd x1e5q0jg x13rtm0m x87ps6o x1lku1pv x1a2a7pz xjyslct xjbqb8w x13fuv20 xu3j5b3 x1q0q8m5 x26u7qi x972fbf xcfux6l x1qhh985 xm0m39n x9f619 x5muytz x1lliihq x5yr21d xdj266r x11i5rnm xat24cr x1mh8g0r x6ikm8r x10wlt62 xexx8yu x4uap5 x18d9i69 xkhd6sd x1n2onr6 x16tdsg8 xh8yej3 x1ja2u2z
+        # External link: a, x1i10hfl xjbqb8w x1ejq31n xd10rxx x1sy0etr x17r0tee x972fbf xcfux6l x1qhh985 xm0m39n x9f619 x1ypdohk xt0psk2 xe8uvvx xdj266r x11i5rnm xat24cr x1mh8g0r xexx8yu x4uap5 x18d9i69 xkhd6sd x16tdsg8 x1hl2dhg xggy1nq x1a2a7pz x1ey2m1c xds687c x10l6tqk x17qophe x13vifvy xi2jdih
+
+        content_divs = cmt_div.find_elements(By.XPATH, "div")
+        print(len(content_divs))
+        if len(content_divs) <= 2:
+            return "no attachment"
+        
+        attm_div = (
+            content_divs[1]
+            .find_element(By.TAG_NAME, "div")
+            .find_element(By.TAG_NAME, "div")
+        )
+        try:
+            attm_div.find_element(By.CSS_SELECTOR, "img.xz74otr")
+            return "image"
+        except: pass
+
+        try:
+            attm_div.find_element(By.CSS_SELECTOR, "img.xz74otr.x1uzojwf.x10e4vud.xa4qsjk.xoj058f.x1nxgg22.x10l6tqk.x17qophe.x13vifvy")
+            return "sticker"
+        except: pass
+
+        try:
+            attm_div.find_element(By.CSS_SELECTOR, "video.x1lliihq.x5yr21d.xh8yej3")
+            return "video"
+        except: pass
+
+        try:
+            attm_div.find_element(By.CSS_SELECTOR, "div.x1i10hfl.x1ypdohk.xe8uvvx.x1hl2dhg.xggy1nq.x1o1ewxj.x3x9cwd.x1e5q0jg.x13rtm0m.x87ps6o.x1lku1pv.x1a2a7pz.xjyslct.xjbqb8w.x13fuv20.xu3j5b3.x1q0q8m5.x26u7qi.x972fbf.xcfux6l.x1qhh985.xm0m39n.x9f619.x5muytz.x1lliihq.x5yr21d.xdj266r.x11i5rnm.xat24cr.x1mh8g0r.x6ikm8r.x10wlt62.xexx8yu.x4uap5.x18d9i69.xkhd6sd.x1n2onr6.x16tdsg8.xh8yej3.x1ja2u2z")
+            return "gif"
+        except: pass
+
+        return "unknown"
+    
+    def parse_text(self, text_element: WebElement):
+        text = text_element.get_attribute("innerHTML")
         text = re.sub(r"(<img[^>]*alt=\"([^\"]+)\")[^>]*>", r"\2", text)
+        text = re.sub(r"<a[^>]*>(.*?)</a>", r"href(\1)", text)
         text = re.sub(r"(?<=</div>)()(?=<div)", r"\n", text)
         text = re.sub(r"<.*?>", "", text)
         return text
