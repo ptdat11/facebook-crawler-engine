@@ -250,7 +250,8 @@ class FacebookPageCrawler(Crawler):
                     "post_url": metadata.post_url,
                     "datetime": metadata.date,
                     "text": text,
-                    "images": images
+                    "images": images,
+                    "type": "post"
                 }
                 data.append(sample)
 
@@ -263,7 +264,8 @@ class FacebookPageCrawler(Crawler):
                         "post_url": metadata.post_url,
                         "datetime": metadata.date,
                         "text": cmt["text"],
-                        "images": cmt["image"]
+                        "images": cmt["image"],
+                        "type": "comment"
                     }
                     for cmt in cmt_data
                 ]
@@ -303,25 +305,25 @@ class FacebookPageCrawler(Crawler):
 
         data = []
         comments = self.chrome.find_elements(By.CSS_SELECTOR, "div.x1r8uery.x1iyjqo2.x6ikm8r.x10wlt62.x1pi30zi")
-        self.logger.info(f"Found {len(comments)} comments")
+        self.logger.info(f"Located {colors.bold(len(comments))} comments")
         for i, comment in enumerate(comments):
             attachment_type = self.extract_cmt_attachment_type(comment)
-            self.logger.info(f"Processing comment {i+1} of {len(comments)}: {attachment_type}")
+            # self.logger.info(f"Processing comment {i+1} of {len(comments)}: {attachment_type}")
             if attachment_type == "image":
-                text_div = (
+                text_div: WebElement = (
                     comment
                     .find_element(By.CSS_SELECTOR, "div")
                     .find_element(By.CSS_SELECTOR, "div")
                     .find_element(By.CSS_SELECTOR, "div")
                     .find_element(By.CSS_SELECTOR, "div")
+                    .find_elements(By.XPATH, "*")[-1]
                 )
-                try:
-                    text.find_element(By.CSS_SELECTOR, "div.xdj266r.x11i5rnm.xat24cr.x1mh8g0r.x1vvkbs")
-                except: 
-                    self.logger.warning("No text found")
+                if text_div.get_attribute("class") != "x1lliihq xjkvuk6 x1iorvi4":
+                    # self.logger.info("No text found")
                     continue
+
                 img = comment.find_element(By.TAG_NAME, "div.x78zum5.xv55zj0.x1vvkbs").find_element(By.CSS_SELECTOR, "img.xz74otr")
-                
+
                 text = self.parse_text(text_div)
                 img_src = img.get_attribute("src")
 
@@ -369,41 +371,55 @@ class FacebookPageCrawler(Crawler):
                             break
                 except Exception as e:
                     break
-    
-    def extract_cmt_attachment_type(self, cmt_div: WebElement):
-        # Sticker: img, xz74otr x1uzojwf x10e4vud xa4qsjk xoj058f x1nxgg22 x10l6tqk x17qophe x13vifvy
-        # Image: img, xz74otr
-        # Video: video, x1lliihq x5yr21d xh8yej3
-        # GIF: div, x1i10hfl x1ypdohk xe8uvvx x1hl2dhg xggy1nq x1o1ewxj x3x9cwd x1e5q0jg x13rtm0m x87ps6o x1lku1pv x1a2a7pz xjyslct xjbqb8w x13fuv20 xu3j5b3 x1q0q8m5 x26u7qi x972fbf xcfux6l x1qhh985 xm0m39n x9f619 x5muytz x1lliihq x5yr21d xdj266r x11i5rnm xat24cr x1mh8g0r x6ikm8r x10wlt62 xexx8yu x4uap5 x18d9i69 xkhd6sd x1n2onr6 x16tdsg8 xh8yej3 x1ja2u2z
-        # External link: a, x1i10hfl xjbqb8w x1ejq31n xd10rxx x1sy0etr x17r0tee x972fbf xcfux6l x1qhh985 xm0m39n x9f619 x1ypdohk xt0psk2 xe8uvvx xdj266r x11i5rnm xat24cr x1mh8g0r xexx8yu x4uap5 x18d9i69 xkhd6sd x16tdsg8 x1hl2dhg xggy1nq x1a2a7pz x1ey2m1c xds687c x10l6tqk x17qophe x13vifvy xi2jdih
 
-        content_divs = cmt_div.find_elements(By.XPATH, "div")
-        print(len(content_divs))
-        if len(content_divs) <= 2:
+    def extract_cmt_attachment_type(self, cmt_div: WebElement):
+        content_divs: list[WebElement] = cmt_div.find_elements(By.XPATH, "div")
+
+        if content_divs[1].get_attribute("class") != "x78zum5 xv55zj0 x1vvkbs":
             return "no attachment"
-        
-        attm_div = (
-            content_divs[1]
-            .find_element(By.TAG_NAME, "div")
-            .find_element(By.TAG_NAME, "div")
-        )
+        attm_div = content_divs[1]
+
+        try:
+            attm_div \
+            .find_element(By.CSS_SELECTOR, "div") \
+            .find_element(By.CSS_SELECTOR, "div") \
+            .find_elements(By.XPATH, "*")[1] \
+            .find_element(By.CSS_SELECTOR, "a")
+            return "link"
+        except: pass
+
         try:
             attm_div.find_element(By.CSS_SELECTOR, "img.xz74otr")
             return "image"
         except: pass
 
         try:
-            attm_div.find_element(By.CSS_SELECTOR, "img.xz74otr.x1uzojwf.x10e4vud.xa4qsjk.xoj058f.x1nxgg22.x10l6tqk.x17qophe.x13vifvy")
+            attm_div \
+            .find_element(By.CSS_SELECTOR, "div") \
+            .find_element(By.CSS_SELECTOR, "img")
             return "sticker"
         except: pass
 
         try:
-            attm_div.find_element(By.CSS_SELECTOR, "video.x1lliihq.x5yr21d.xh8yej3")
+            attm_div \
+            .find_element(By.CSS_SELECTOR, "div") \
+            .find_element(By.CSS_SELECTOR, "div") \
+            .find_element(By.CSS_SELECTOR, "div") \
+            .find_element(By.CSS_SELECTOR, "div") \
+            .find_element(By.CSS_SELECTOR, "div") \
+            .find_element(By.CSS_SELECTOR, "div") \
+            .find_element(By.CSS_SELECTOR, "div") \
+            .find_element(By.CSS_SELECTOR, "video")
             return "video"
         except: pass
 
         try:
-            attm_div.find_element(By.CSS_SELECTOR, "div.x1i10hfl.x1ypdohk.xe8uvvx.x1hl2dhg.xggy1nq.x1o1ewxj.x3x9cwd.x1e5q0jg.x13rtm0m.x87ps6o.x1lku1pv.x1a2a7pz.xjyslct.xjbqb8w.x13fuv20.xu3j5b3.x1q0q8m5.x26u7qi.x972fbf.xcfux6l.x1qhh985.xm0m39n.x9f619.x5muytz.x1lliihq.x5yr21d.xdj266r.x11i5rnm.xat24cr.x1mh8g0r.x6ikm8r.x10wlt62.xexx8yu.x4uap5.x18d9i69.xkhd6sd.x1n2onr6.x16tdsg8.xh8yej3.x1ja2u2z")
+            attm_div \
+            .find_element(By.CSS_SELECTOR, "div") \
+            .find_element(By.CSS_SELECTOR, "div") \
+            .find_element(By.CSS_SELECTOR, "div") \
+            .find_element(By.CSS_SELECTOR, "div") \
+            .find_element(By.CSS_SELECTOR, "i")
             return "gif"
         except: pass
 
