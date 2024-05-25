@@ -61,6 +61,7 @@ class Crawler(threading.Thread):
         self.DOM_wait_second = DOM_wait_second
 
         self.driver_manager = ChromeDriverManager(latest_release_url="https://storage.googleapis.com/chrome-for-testing-public/125.0.6422.112/linux64/chrome-linux64.zip").install()
+        
         self.driver_service = Service(self.driver_manager)
         self.driver_options = webdriver.ChromeOptions()
         # Options

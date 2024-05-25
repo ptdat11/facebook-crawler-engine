@@ -35,7 +35,7 @@ engine = Engine(
         "headless": True,
         "mean_std_sleep_second": (4, 1),
         "DOM_wait_second": 90,
-        "comment_load_num": 50
+        "comment_load_num": 30
     }
 )
 engine.run()
