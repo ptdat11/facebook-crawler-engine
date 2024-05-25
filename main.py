@@ -2,6 +2,10 @@ from engine import Engine
 from crawler import FacebookPageCrawler
 from pipeline import Pipeline, SaveAsCSV
 import colors
+import getpass
+
+email = "ptdat01012003@outlook.com"
+password = getpass.getpass()
 
 page_ids = [
     "colinkkhong",
@@ -26,10 +30,12 @@ engine = Engine(
     num_crawlers=num_crawlers,
     name_format=f"Crawler-{colors._bold}{{0}}",
     crawler_kwargs={
+        "email": email,
+        "password": password,
         "headless": True,
-        "mean_std_sleep_second": (5, 1),
+        "mean_std_sleep_second": (4, 1),
         "DOM_wait_second": 90,
-        "comment_load_num": 100
+        "comment_load_num": 50
     }
 )
 engine.run()

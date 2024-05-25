@@ -150,6 +150,8 @@ class FacebookPageCrawler(Crawler):
         termination_event: threading.Event,
         progress: Progress,
         data_pipeline: Pipeline,
+        email: str,
+        password: str,
         headless: bool = True,
         cookies_dir: str = "./fb-cookies",
         name: str | None = None,
@@ -170,6 +172,8 @@ class FacebookPageCrawler(Crawler):
             thread_args=thread_args, 
             thread_kwargs=thread_kwargs
         )
+        self.email = email
+        self.password = password
         self.cmt_load_num = comment_load_num
         self.cookies = FacebookCookies(cookies_dir)
 
@@ -205,13 +209,10 @@ class FacebookPageCrawler(Crawler):
         email_input = self.chrome.find_element(By.NAME, "email")
         pass_input = self.chrome.find_element(By.NAME, "pass")
 
-        email = input(colors.bold("Your email:"))
-        password = getpass.getpass(colors.bold("Enter password:"))
-
         # Fill the form
-        email_input.send_keys(email)
+        email_input.send_keys(self.email)
         pass_input.click()
-        pass_input.send_keys(password)
+        pass_input.send_keys(self.password)
 
         # Submit form
         login_btn = self.chrome.find_element(By.NAME, "login")
@@ -400,7 +401,6 @@ class FacebookPageCrawler(Crawler):
                 cnt += 1
                 self.chrome.execute_script("window.scrollBy(0, -50);")  # Cuộn lên 50 dòng
                 try:
-                    print("Loading replies")
                     view_more_buttons = WebDriverWait(comment, 5).until(EC.element_to_be_clickable(comment))
                     view_more_buttons.click()
                 except Exception as e:
