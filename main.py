@@ -5,8 +5,8 @@ import colors
 
 page_ids = [
     "colinkkhong",
-    # "chonlonglay",
-    # "ChiHieuHon"
+    "chonlonglay",
+    "ChiHieuHon"
 ]
 num_crawlers = len(page_ids)
 group_name = "_".join(page_ids)

@@ -386,22 +386,23 @@ class FacebookPageCrawler(Crawler):
     def show_all_replies(self):
         cnt = 0
         while cnt <= self.cmt_load_num:
-            all_replied_comments = self.chrome.find_elements(By.XPATH, "//div[contains(@class, 'x1n2onr6 x46jau6')]")
-            if len(all_replied_comments) == 0:
+            if len(bs4.BeautifulSoup(
+                self.chrome.find_element(By.XPATH, "//div[@class = 'x1pi30zi x1swvt13 x1n2onr6']").find_element(By.XPATH, "//div[@class = 'x1gslohp']").get_attribute("innerHTML"),
+                "lxml"
+            ).find_all(
+                "div",
+                attrs={"class": "x78zum5 x1iyjqo2 x21xpn4 x1n2onr6"}
+            )) == 0:
                 break
 
+            all_replied_comments = self.chrome.find_elements(By.XPATH, "//div[contains(@class, 'x78zum5 x1iyjqo2 x21xpn4 x1n2onr6')]")
             for comment in all_replied_comments:
                 cnt += 1
                 self.chrome.execute_script("window.scrollBy(0, -50);")  # Cuộn lên 50 dòng
                 try:
-                    view_more_buttons = WebDriverWait(comment, 5).until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class, 'x78zum5 x1iyjqo2 x21xpn4 x1n2onr6')]")))
+                    print("Loading replies")
+                    view_more_buttons = WebDriverWait(comment, 5).until(EC.element_to_be_clickable(comment))
                     view_more_buttons.click()
-                    for sub_cmt in comment:
-                        try:
-                            view_more_sub_buttons = WebDriverWait(sub_cmt, 5).until(EC.element_to_be_clickable((By.XPATH, "//div[contains(@class, 'x78zum5 x1iyjqo2 x21xpn4 x1n2onr6')]")))
-                            view_more_sub_buttons.click()
-                        except:
-                            break
                 except Exception as e:
                     break
 
