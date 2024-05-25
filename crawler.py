@@ -16,6 +16,7 @@ from credentials import FacebookCookies
 import colors
 
 from typing import Literal
+import bs4
 import re
 import logging
 import getpass
@@ -23,6 +24,7 @@ import numpy as np
 import time
 import sys
 import traceback
+from tqdm import tqdm
 
 LOGGER.setLevel(logging.CRITICAL)
 total_crawler = 0
@@ -36,6 +38,7 @@ class Crawler(threading.Thread):
         termination_event: threading.Event,
         progress: Progress,
         data_pipeline: Pipeline,
+        headless: bool = True,
         name: str | None = None,
         mean_std_sleep_second: tuple[float, float] = (10, 1),
         DOM_wait_second: float = 90,
@@ -53,6 +56,7 @@ class Crawler(threading.Thread):
         self.progress = progress
         self.data_pipeline = data_pipeline
 
+        self.headless = headless
         self.mean_std_sleep_second = mean_std_sleep_second
         self.DOM_wait_second = DOM_wait_second
 
@@ -60,7 +64,9 @@ class Crawler(threading.Thread):
         self.driver_service = Service(self.driver_manager)
         self.driver_options = webdriver.ChromeOptions()
         # Options
-        self.driver_options.add_experimental_option("detach", True)
+        if headless:
+            self.driver_options.add_argument("--headless")
+        else: self.driver_options.add_experimental_option("detach", True)
 
     def new_tab(self, url: str):
         self.chrome.switch_to.new_window("tab")
@@ -144,6 +150,7 @@ class FacebookPageCrawler(Crawler):
         termination_event: threading.Event,
         progress: Progress,
         data_pipeline: Pipeline,
+        headless: bool = True,
         cookies_dir: str = "./fb-cookies",
         name: str | None = None,
         comment_load_num: int = 300,
@@ -156,6 +163,7 @@ class FacebookPageCrawler(Crawler):
             termination_event=termination_event,
             progress=progress,
             data_pipeline=data_pipeline,
+            headless=headless,
             name=name,
             mean_std_sleep_second=mean_std_sleep_second, 
             DOM_wait_second=DOM_wait_second, 
@@ -301,11 +309,13 @@ class FacebookPageCrawler(Crawler):
         self.cmt_show_mode("all")
         self.wait_DOM()
         self.sleep()
-        # self.show_all_replies()
+        self.logger.info("Showing more comments")
+        self.show_all_replies()
 
         data = []
         comments = self.chrome.find_elements(By.CSS_SELECTOR, "div.x1r8uery.x1iyjqo2.x6ikm8r.x10wlt62.x1pi30zi")
         self.logger.info(f"Located {colors.bold(len(comments))} comments")
+
         for i, comment in enumerate(comments):
             attachment_type = self.extract_cmt_attachment_type(comment)
             # self.logger.info(f"Processing comment {i+1} of {len(comments)}: {attachment_type}")
@@ -325,7 +335,8 @@ class FacebookPageCrawler(Crawler):
                 img = comment.find_element(By.TAG_NAME, "div.x78zum5.xv55zj0.x1vvkbs").find_element(By.CSS_SELECTOR, "img.xz74otr")
 
                 text = self.parse_text(text_div)
-                img_src = img.get_attribute("src")
+                self.logger.info(f"Getting {i+1}th comment's image")
+                img_src = self.parse_cmt_img(img)
 
                 data.append({
                     "text": text,
@@ -333,7 +344,29 @@ class FacebookPageCrawler(Crawler):
                 })
         return data
 
+    def parse_cmt_img(self, img_element: WebElement):
+        href = img_element.find_element(By.XPATH, "./..").get_attribute("href")
+        current_handle = self.chrome.current_window_handle
+        self.new_tab(href)
+        self.wait_DOM()
+        self.sleep()
+
+        page_soup = bs4.BeautifulSoup(self.chrome.page_source, "lxml")
+        img = page_soup.find(
+            "img",
+            attrs={"data-visualcompletion": "media-vc-image"}
+        )
+        src = img.attrs["src"]
+
+        self.chrome.close()
+        self.chrome.switch_to.window(current_handle)
+        return src
+
     def cmt_show_mode(self, mode: Literal["newest", "most relevant", "all"] = "all"):
+        btn_div = self.chrome.find_element(By.CSS_SELECTOR, "div.x78zum5.x1n2onr6.x1nhvcw1")
+        if len(btn_div.find_elements(By.XPATH, "*")) == 0:
+            return
+
         mode = {
             "newest": 1,
             "most relevant": 2,
@@ -375,53 +408,49 @@ class FacebookPageCrawler(Crawler):
     def extract_cmt_attachment_type(self, cmt_div: WebElement):
         content_divs: list[WebElement] = cmt_div.find_elements(By.XPATH, "div")
 
+        # print("Checking none")
         if content_divs[1].get_attribute("class") != "x78zum5 xv55zj0 x1vvkbs":
             return "no attachment"
         attm_div = content_divs[1]
+        attm_soup = bs4.BeautifulSoup(attm_div.get_attribute("innerHTML"), "lxml")
 
-        try:
-            attm_div \
-            .find_element(By.CSS_SELECTOR, "div") \
-            .find_element(By.CSS_SELECTOR, "div") \
-            .find_elements(By.XPATH, "*")[1] \
-            .find_element(By.CSS_SELECTOR, "a")
-            return "link"
-        except: pass
-
-        try:
-            attm_div.find_element(By.CSS_SELECTOR, "img.xz74otr")
-            return "image"
-        except: pass
-
-        try:
-            attm_div \
-            .find_element(By.CSS_SELECTOR, "div") \
-            .find_element(By.CSS_SELECTOR, "img")
-            return "sticker"
-        except: pass
-
-        try:
-            attm_div \
-            .find_element(By.CSS_SELECTOR, "div") \
-            .find_element(By.CSS_SELECTOR, "div") \
-            .find_element(By.CSS_SELECTOR, "div") \
-            .find_element(By.CSS_SELECTOR, "div") \
-            .find_element(By.CSS_SELECTOR, "div") \
-            .find_element(By.CSS_SELECTOR, "div") \
-            .find_element(By.CSS_SELECTOR, "div") \
-            .find_element(By.CSS_SELECTOR, "video")
+        # print("Checking video")
+        if attm_soup.find(
+            "video",
+            attrs={"class": "x1lliihq x5yr21d xh8yej3"}
+        ):
             return "video"
-        except: pass
 
-        try:
-            attm_div \
-            .find_element(By.CSS_SELECTOR, "div") \
-            .find_element(By.CSS_SELECTOR, "div") \
-            .find_element(By.CSS_SELECTOR, "div") \
-            .find_element(By.CSS_SELECTOR, "div") \
-            .find_element(By.CSS_SELECTOR, "i")
+        # print("Checking link")
+        if attm_soup.find(
+            "a",
+            attrs={"class": "x1i10hfl xjbqb8w x1ejq31n xd10rxx x1sy0etr x17r0tee x972fbf xcfux6l x1qhh985 xm0m39n x9f619 x1ypdohk xt0psk2 xe8uvvx xdj266r x11i5rnm xat24cr x1mh8g0r xexx8yu x4uap5 x18d9i69 xkhd6sd x16tdsg8 x1hl2dhg xggy1nq x1a2a7pz x1ey2m1c xds687c x10l6tqk x17qophe x13vifvy xi2jdih"}
+        ):
+            return "link"
+
+        # print("Checking sticker")
+        if attm_soup.find(
+            "img",
+            attrs={"class": "xz74otr x1uzojwf x10e4vud xa4qsjk xoj058f x1nxgg22 x10l6tqk x17qophe x13vifvy"}
+        ):
+            return "sticker"
+
+        # print("Checking gif")
+        if attm_soup.find(
+            "div",
+            attrs={"class": "x1i10hfl x1ypdohk xe8uvvx x1hl2dhg xggy1nq x1o1ewxj x3x9cwd x1e5q0jg x13rtm0m x87ps6o x1lku1pv x1a2a7pz xjyslct xjbqb8w x13fuv20 xu3j5b3 x1q0q8m5 x26u7qi x972fbf xcfux6l x1qhh985 xm0m39n x9f619 x5muytz x1lliihq x5yr21d xdj266r x11i5rnm xat24cr x1mh8g0r x6ikm8r x10wlt62 xexx8yu x4uap5 x18d9i69 xkhd6sd x1n2onr6 x16tdsg8 xh8yej3 x1ja2u2z"}
+        ) or attm_soup.find(
+            "img",
+            attrs={"class": "xz74otr x1lliihq xt7dq6l x193iq5w"}
+        ):
             return "gif"
-        except: pass
+
+        # print("Checking image")
+        if attm_soup.find(
+            "img",
+            attrs={"class": "xz74otr"}
+        ):
+            return "image"
 
         return "unknown"
     

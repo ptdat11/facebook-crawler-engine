@@ -82,6 +82,7 @@ class Engine:
             self.wait_all()
         except:
             # Catch any exceptions and set the termination flag.
+            self.logger.warning("Received SIGINT signal from Ctrl+C")
             self.termination_flag.set()
         finally:
             self.wait_all()

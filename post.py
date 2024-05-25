@@ -2,7 +2,7 @@ from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.by import By
 import selenium.common.exceptions as exc
 
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 import re
 from urllib.parse import urlparse
 from typing import Sequence, Literal

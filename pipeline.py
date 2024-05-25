@@ -2,6 +2,7 @@ from selenium import webdriver
 from pandas import DataFrame
 from typing import Sequence, Callable, Any
 import os
+import pathlib
 
 from credentials import FacebookCookies
 
@@ -49,13 +50,18 @@ class SaveAsCSV:
     def __init__(
         self,
         path: str,
+        transform_to_dframe: bool = True
     ) -> None:
-        self.path = path
+        self.path = pathlib.Path(path)
+        self.to_df = transform_to_dframe
 
     def __call__(
         self,
         data: dict[str, Any]
     ) -> Any:
+        if not self.path.parent:
+            os.makedirs(self.path.parent, exist_ok=True)
+
         if not isinstance(data, Sequence):
             data = [data]
         df = DataFrame(data)
@@ -67,4 +73,4 @@ class SaveAsCSV:
             header=not os.path.exists(self.path)
         )
 
-        return data
+        return df if self.to_df else data
