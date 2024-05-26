@@ -336,6 +336,17 @@ class FacebookPageCrawler(Crawler):
 
                 img = comment.find_element(By.TAG_NAME, "div.x78zum5.xv55zj0.x1vvkbs").find_element(By.CSS_SELECTOR, "img.xz74otr")
 
+                text_soup = bs4.BeautifulSoup(text_div.get_attribute("innerHTML"))
+                if text_soup.find(
+                    "div",
+                    attrs={
+                        "role": "button",
+                        "tabindex": "0"
+                    },
+                    string="Xem thêm"
+                ) is not None:
+                    text_div.find_element(By.XPATH, "//div[@role='button' and text()='Xem thêm']").click()
+
                 text = self.parse_text(text_div)
                 self.logger.info(f"Getting {i+1}th comment's image")
                 img_src = self.parse_cmt_img(img)
@@ -406,6 +417,9 @@ class FacebookPageCrawler(Crawler):
                     view_more_buttons.click()
                 except Exception as e:
                     break
+                time.sleep(
+                    np.clip(np.random.normal(0.8, 0.1), 0, 1.2)
+                )
 
     def extract_cmt_attachment_type(self, cmt_div: WebElement):
         content_divs: list[WebElement] = cmt_div.find_elements(By.XPATH, "div")

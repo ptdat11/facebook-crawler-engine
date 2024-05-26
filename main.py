@@ -32,10 +32,11 @@ engine = Engine(
     crawler_kwargs={
         "email": email,
         "password": password,
-        "headless": True,
+        "headless": False,
         "mean_std_sleep_second": (4, 1),
         "DOM_wait_second": 90,
-        "comment_load_num": 30
+        "comment_load_num": 30,
+        "cookies_dir": "./cookies"
     }
 )
 engine.run()
