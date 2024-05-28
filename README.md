@@ -1,5 +1,11 @@
 # Crawler Engine for Facebook
 
+## How to save Cookies to keep the login session?
+
+There is a `save-cookies.ipynb` providing a step-by-step guide in order to store cookies in a local directory.
+
+> Saving cookies reduces the risk of being detected by Facebook, because logging in many times will look suspicious as if someone hacked into the account.
+
 ## How to run Engine
 
 In the `crawler.py` file, go to line no.63. Replace your driver link suitable with your current Google Chrome version in your machine. The links can be found at: [https://googlechromelabs.github.io/chrome-for-testing/](https://googlechromelabs.github.io/chrome-for-testing/)
@@ -16,10 +22,6 @@ python3 main.py
 > Recommended number of crawlers: **2** (ie. 2 pages by default in `main.py`)
 
 > Recommended number of comment loading times: As **small** as possible (Scraping comments highly increases the chance of being blocked by Facebook)
-
-## How to save Cookies to keep the login session?
-
-There is a `save-cookies.ipynb` providing a step-by-step guide in order to store cookies in a local directory.
 
 ## Engine Requirements
 
