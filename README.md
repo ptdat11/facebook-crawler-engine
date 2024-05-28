@@ -13,7 +13,7 @@ In the `main.py` file:
 python3 main.py
 ```
 
-> Recommended number of crawlers: **2** (ie. 2 pages by default in `main.py`)
+> Recommended number of crawlers: **2** (ie. 2 pages by default in `main.py`) \\
 > Recommended number of comment loading times: As **small** as possible (Scraping comments highly increases the chance of being blocked by Facebook)
 
 ## How to save Cookies to keep the login session?
