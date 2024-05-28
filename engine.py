@@ -5,6 +5,7 @@ from logger import Logger
 
 from typing import Sequence, Type
 import threading
+import time
 
 class Engine:
     """
@@ -78,6 +79,7 @@ class Engine:
         try:
             for crawler in self.crawlers:
                 crawler.start()
+                time.sleep(1)
             # Start all crawlers.
             self.wait_all()
         except:

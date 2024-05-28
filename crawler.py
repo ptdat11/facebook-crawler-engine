@@ -157,6 +157,7 @@ class FacebookPageCrawler(Crawler):
         cookies_dir: str = "./fb-cookies",
         name: str | None = None,
         comment_load_num: int = 300,
+        mean_std_load_cmt_sleep_second: tuple[float, float] = (1, 0.1),
         mean_std_sleep_second: tuple[float, float] = (6, 1),
         DOM_wait_second: float = 60,
         thread_args: tuple = (),
@@ -177,6 +178,7 @@ class FacebookPageCrawler(Crawler):
         self.password = password
         self.cmt_load_num = comment_load_num
         self.cookies = FacebookCookies(cookies_dir)
+        self.mean_std_cmt_sleep = mean_std_load_cmt_sleep_second
 
     def on_parse_error(self):
         if not self.termination_flag.is_set():
@@ -336,7 +338,7 @@ class FacebookPageCrawler(Crawler):
 
                 img = comment.find_element(By.TAG_NAME, "div.x78zum5.xv55zj0.x1vvkbs").find_element(By.CSS_SELECTOR, "img.xz74otr")
 
-                text_soup = bs4.BeautifulSoup(text_div.get_attribute("innerHTML"))
+                text_soup = bs4.BeautifulSoup(text_div.get_attribute("innerHTML"), "lxml")
                 if text_soup.find(
                     "div",
                     attrs={
@@ -373,6 +375,7 @@ class FacebookPageCrawler(Crawler):
 
         self.chrome.close()
         self.chrome.switch_to.window(current_handle)
+        self.sleep()
         return src
 
     def cmt_show_mode(self, mode: Literal["newest", "most relevant", "all"] = "all"):
@@ -417,8 +420,10 @@ class FacebookPageCrawler(Crawler):
                     view_more_buttons.click()
                 except Exception as e:
                     break
+
+                mean, std = self.mean_std_cmt_sleep
                 time.sleep(
-                    np.clip(np.random.normal(0.8, 0.1), 0, 1.2)
+                    np.clip(np.random.normal(mean, std), 0, mean+3*std)
                 )
 
     def extract_cmt_attachment_type(self, cmt_div: WebElement):

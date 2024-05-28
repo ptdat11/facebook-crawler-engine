@@ -6,13 +6,19 @@ In the `crawler.py` file, go to line no.63. Replace your driver link suitable wi
 
 In the `main.py` file:
 
-1. Provide your Facebook email
-2. Provide the page IDs your would scrape
-3. From your CLI, run:
+1. Provide the page IDs your would scrape
+2. From your CLI, run:
 
 ```sh
 python3 main.py
 ```
+
+> Recommended number of crawlers: **2** (ie. 2 pages by default in `main.py`)
+> Recommended number of comment loading times: As **small** as possible (Scraping comments highly increases the chance of being blocked by Facebook)
+
+## How to save Cookies to keep the login session?
+
+There is a `save-cookies.ipynb` providing a step-by-step guide in order to store cookies in a local directory.
 
 ## Engine Requirements
 

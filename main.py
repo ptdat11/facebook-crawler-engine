@@ -4,13 +4,18 @@ from pipeline import Pipeline, SaveAsCSV
 import colors
 import getpass
 
-email = "ptdat01012003@outlook.com"
-password = getpass.getpass()
+email = ""
+password = ""
 
+# page_ids = [
+#     "colinkkhong",
+#     "chonlonglay",
+#     "ChiHieuHon"
+# ]
 page_ids = [
-    "colinkkhong",
-    "chonlonglay",
-    "ChiHieuHon"
+    "trollbongda",
+    "trollxe.vietnam",
+    "www.voz.vn"
 ]
 num_crawlers = len(page_ids)
 group_name = "_".join(page_ids)
@@ -29,14 +34,14 @@ engine = Engine(
     progress_dir=f"./data/{group_name}/progress",
     num_crawlers=num_crawlers,
     name_format=f"Crawler-{colors._bold}{{0}}",
-    crawler_kwargs={
-        "email": email,
-        "password": password,
-        "headless": False,
-        "mean_std_sleep_second": (4, 1),
-        "DOM_wait_second": 90,
-        "comment_load_num": 30,
-        "cookies_dir": "./cookies"
-    }
+    crawler_kwargs=dict(
+        email=email,
+        password=password,
+        headless=True,
+        mean_std_sleep_second=(8, 1),
+        DOM_wait_second=90,
+        comment_load_num=0,
+        cookies_dir="./fb-cookies"
+    )
 )
 engine.run()
