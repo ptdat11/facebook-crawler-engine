@@ -156,6 +156,7 @@ class FacebookPageCrawler(Crawler):
         headless: bool = True,
         cookies_dir: str = "./fb-cookies",
         name: str | None = None,
+        scrape_cmts: bool = True,
         comment_load_num: int = 300,
         mean_std_load_cmt_sleep_second: tuple[float, float] = (1, 0.1),
         mean_std_sleep_second: tuple[float, float] = (6, 1),
@@ -176,6 +177,7 @@ class FacebookPageCrawler(Crawler):
         )
         self.email = email
         self.password = password
+        self.scrape_cmts = scrape_cmts
         self.cmt_load_num = comment_load_num
         self.cookies = FacebookCookies(cookies_dir)
         self.mean_std_cmt_sleep = mean_std_load_cmt_sleep_second
@@ -260,6 +262,8 @@ class FacebookPageCrawler(Crawler):
                     "page_id": metadata.page_id,
                     "post_id": metadata.post_id,
                     "post_url": metadata.post_url,
+                    "cmt_id": "",
+                    "cmt_url": "",
                     "datetime": metadata.date,
                     "text": text,
                     "images": images,
@@ -267,21 +271,24 @@ class FacebookPageCrawler(Crawler):
                 }
                 data.append(sample)
 
-                self.logger.info("Parsing comments...")
-                cmt_data = self.parse_comments()
-                cmt_data = [
-                    {
-                        "page_id": metadata.page_id,
-                        "post_id": metadata.post_id,
-                        "post_url": metadata.post_url,
-                        "datetime": metadata.date,
-                        "text": cmt["text"],
-                        "images": cmt["image"],
-                        "type": "comment"
-                    }
-                    for cmt in cmt_data
-                ]
-                data.extend(cmt_data)
+                if self.scrape_cmts:
+                    self.logger.info("Parsing comments...")
+                    cmt_data = self.parse_comments()
+                    cmt_data = [
+                        {
+                            "page_id": metadata.page_id,
+                            "post_id": metadata.post_id,
+                            "post_url": metadata.post_url,
+                            "cmt_id": cmt["id"],
+                            "cmt_url": cmt["url"],
+                            "datetime": metadata.date,
+                            "text": cmt["text"],
+                            "images": cmt["image"],
+                            "type": "comment"
+                        }
+                        for cmt in cmt_data
+                    ]
+                    data.extend(cmt_data)
 
                 self.progress.add_history(metadata.post_url)
                 self.close_all_new_tabs()
@@ -351,11 +358,13 @@ class FacebookPageCrawler(Crawler):
 
                 text = self.parse_text(text_div)
                 self.logger.info(f"Getting {i+1}th comment's image")
-                img_src = self.parse_cmt_img(img)
+                img_src, cmt_id = self.parse_cmt_img(img)
 
                 data.append({
+                    "id": cmt_id,
+                    "url": "https://facebook.com/" + cmt_id,
                     "text": text,
-                    "image": img_src
+                    "image": img_src,
                 })
         return data
 
@@ -372,11 +381,15 @@ class FacebookPageCrawler(Crawler):
             attrs={"data-visualcompletion": "media-vc-image"}
         )
         src = img.attrs["src"]
+        raw_url = self.chrome.current_url
+        cmt_id = re.search(r"fbid=(\d+)", raw_url).group(1)
 
         self.chrome.close()
         self.chrome.switch_to.window(current_handle)
+
         self.sleep()
-        return src
+        
+        return src, cmt_id
 
     def cmt_show_mode(self, mode: Literal["newest", "most relevant", "all"] = "all"):
         btn_div = self.chrome.find_element(By.CSS_SELECTOR, "div.x78zum5.x1n2onr6.x1nhvcw1")

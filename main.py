@@ -1,6 +1,6 @@
 from engine import Engine
 from crawler import FacebookPageCrawler
-from pipeline import Pipeline, SaveAsCSV
+from pipeline import Pipeline, SaveImages, SaveAsCSV
 import colors
 import getpass
 
@@ -13,18 +13,17 @@ password = ""
 #     "ChiHieuHon"
 # ]
 page_ids = [
-    "trollbongda",
-    "trollxe.vietnam",
-    "www.voz.vn"
+    "khaunghiepfp"
 ]
 num_crawlers = len(page_ids)
 group_name = "_".join(page_ids)
 
 data_pipeline = Pipeline(
-    SaveAsCSV(
-        f"./data/{group_name}/{group_name}.csv",
-        transform_to_dframe=True
-    )
+    SaveImages(
+        save_dir=f"./data/{group_name}/imgs",
+        img_name_format="{post_id}_{cmt_id}_{ordinal}.jpg"
+    ),
+    SaveAsCSV(f"./data/{group_name}/{group_name}.csv")
 )
 
 engine = Engine(
@@ -37,9 +36,10 @@ engine = Engine(
     crawler_kwargs=dict(
         email=email,
         password=password,
-        headless=True,
+        headless=False,
         mean_std_sleep_second=(8, 1),
         DOM_wait_second=90,
+        scrape_cmts=False,
         comment_load_num=0,
         cookies_dir="./fb-cookies"
     )
