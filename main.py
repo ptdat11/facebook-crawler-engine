@@ -13,7 +13,7 @@ password = ""
 #     "ChiHieuHon"
 # ]
 page_ids = [
-    "khaunghiepfp"
+    "insightmatlong"
 ]
 num_crawlers = len(page_ids)
 group_name = "_".join(page_ids)
@@ -36,8 +36,8 @@ engine = Engine(
     crawler_kwargs=dict(
         email=email,
         password=password,
-        headless=False,
-        mean_std_sleep_second=(8, 1),
+        headless=True,
+        mean_std_sleep_second=(10, 2),
         DOM_wait_second=90,
         scrape_cmts=False,
         comment_load_num=0,

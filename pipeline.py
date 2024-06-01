@@ -86,7 +86,7 @@ class SaveImages:
                 )
                 img_files.append(img_file)
             if self.replace_url:
-                df.loc[tp.Index, "images"] = " ".join(img_files)
+                df.loc[tp.Index, "images"] = "   ".join(img_files)
         
         return df
         

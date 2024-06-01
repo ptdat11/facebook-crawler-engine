@@ -76,13 +76,15 @@ class PagePostMetadata:
 
 def parse_post_date(raw_date: str):
     dt = datetime.now()
-    if "tháng" in raw_date:
+    if "tháng" in raw_date and "lúc" in raw_date:
         if "," not in raw_date:
             year = str(datetime.now().year)
             raw_date = f", {year}".join(
                 re.split(r"(?<=\d)(?= lúc)", raw_date)
             )
         dt = datetime.strptime(raw_date, "%d tháng %m, %Y lúc %H:%M")
+    elif "tháng" in raw_date:
+        dt = datetime.strptime(raw_date, "%d tháng %m")
     elif "phút" in raw_date:
         minute = re.search(r"(\d{1,2}) phút", raw_date).group(1)
         minute = int(minute)
@@ -96,6 +98,7 @@ def parse_post_date(raw_date: str):
         hour, minute = h_m_search.group(1), h_m_search.group(2)
         dt -= timedelta(days=1)
         dt.replace(hour=int(hour), minute=int(minute))
+    
     return dt
 
 def parse_attachment_types(attachment_hrefs: Sequence[str]):
