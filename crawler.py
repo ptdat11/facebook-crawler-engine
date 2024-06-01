@@ -307,7 +307,7 @@ class FacebookPageCrawler(Crawler):
         self.sleep()
         html_divs = self.chrome.find_elements(By.CLASS_NAME, "html-div")
         text_div, img_div = html_divs[8].find_elements(By.XPATH, "div")
-        img_div = img_div.find_element(By.XPATH, "div").find_element(By.XPATH, "*").find_element(By.XPATH, "div")
+        img_div = img_div.find_element(By.XPATH, "div").find_element(By.XPATH, "*").find_element(By.XPATH, "div").find_element(By.XPATH, "*")
 
         text = self.parse_text(text_div)
         images = "   ".join([
