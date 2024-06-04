@@ -13,7 +13,7 @@ password = ""
 #     "ChiHieuHon"
 # ]
 page_ids = [
-    "insightmatlong"
+    "ChiHieuHon"
 ]
 num_crawlers = len(page_ids)
 group_name = "_".join(page_ids)
@@ -21,7 +21,9 @@ group_name = "_".join(page_ids)
 data_pipeline = Pipeline(
     SaveImages(
         save_dir=f"./data/{group_name}/imgs",
-        img_name_format="{post_id}_{cmt_id}_{ordinal}.jpg"
+        img_col="images",
+        img_name_format="{post_id}_{cmt_id}_{ordinal}.jpg",
+        replace_url_with_file_name=True
     ),
     SaveAsCSV(f"./data/{group_name}/{group_name}.csv")
 )
@@ -37,7 +39,7 @@ engine = Engine(
         email=email,
         password=password,
         headless=True,
-        mean_std_sleep_second=(10, 2),
+        mean_std_sleep_second=(11, 3),
         DOM_wait_second=90,
         scrape_cmts=False,
         comment_load_num=0,

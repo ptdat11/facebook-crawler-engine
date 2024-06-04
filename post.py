@@ -82,8 +82,10 @@ def parse_post_date(raw_date: str):
             raw_date = f", {year}".join(
                 re.split(r"(?<=\d)(?= lúc)", raw_date)
             )
+        raw_date = re.search(r"\d{1,2} tháng \d{1,2}, \d{4} lúc \d{1,2}:\d{1,2}", raw_date).group(0)
         dt = datetime.strptime(raw_date, "%d tháng %m, %Y lúc %H:%M")
     elif "tháng" in raw_date:
+        raw_date = re.search(r"\d{1,2} tháng \d{1,2}", raw_date).group(0)
         dt = datetime.strptime(raw_date, "%d tháng %m")
     elif "phút" in raw_date:
         minute = re.search(r"(\d{1,2}) phút", raw_date).group(1)

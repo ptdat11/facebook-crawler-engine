@@ -181,10 +181,16 @@ class FacebookPageCrawler(Crawler):
         self.cmt_load_num = comment_load_num
         self.cookies = FacebookCookies(cookies_dir)
         self.mean_std_cmt_sleep = mean_std_load_cmt_sleep_second
+    
+    def load_cookies(self):
+        self.chrome.get("https://mbasic.facebook.com")
+        for cookie in self.cookies.load():
+            self.chrome.add_cookie(cookie)
 
     def on_parse_error(self):
         if not self.termination_flag.is_set():
             self.close_all_new_tabs()
+        self.load_cookies()
         
     def on_start(self):
         # If local doesn't have cookies
@@ -196,9 +202,7 @@ class FacebookPageCrawler(Crawler):
             self.logger.info("Saved current cookies for future Facebook access")
         # If local has already stored cookies
         else:
-            self.chrome.get("https://mbasic.facebook.com")
-            for cookie in self.cookies.load():
-                self.chrome.add_cookie(cookie)
+            self.load_cookies()
 
             # Refresh cookies
             self.chrome.refresh()
@@ -243,6 +247,8 @@ class FacebookPageCrawler(Crawler):
         )
         self.logger.info("Located {0} posts".format(colors.bold(str(len(posts)))))
 
+        # Switch off login session, reducing account traffic
+        self.chrome.delete_all_cookies()
         data = []
         for i, post in enumerate(posts):
             metadata = PagePostMetadata(post)
@@ -300,14 +306,20 @@ class FacebookPageCrawler(Crawler):
                         else None
         self.progress.enqueue(next_page_link)
 
+        # Turn back on the login session, for propagating across the page
+        self.load_cookies()
+
         return data
 
     def parse_post(self):
         self.wait_DOM()
         self.sleep()
+        
+        self.chrome.find_element(By.CSS_SELECTOR, "div[aria-label='Close']").click()
+
         html_divs = self.chrome.find_elements(By.CLASS_NAME, "html-div")
-        text_div, img_div = html_divs[8].find_elements(By.XPATH, "div")
-        img_div = img_div.find_element(By.XPATH, "div").find_element(By.XPATH, "*").find_element(By.XPATH, "div").find_element(By.XPATH, "*")
+        text_div, img_div = html_divs[6].find_elements(By.XPATH, "div")
+        img_div = img_div.find_element(By.XPATH, "div").find_element(By.XPATH, "*").find_element(By.XPATH, "*").find_element(By.XPATH, "*")
 
         text = self.parse_text(text_div)
         images = "   ".join([
