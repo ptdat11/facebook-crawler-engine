@@ -7,13 +7,8 @@ import getpass
 email = ""
 password = ""
 
-# page_ids = [
-#     "colinkkhong",
-#     "chonlonglay",
-#     "ChiHieuHon"
-# ]
 page_ids = [
-    "ChiHieuHon"
+    "internetexplorerbeta"
 ]
 num_crawlers = len(page_ids)
 group_name = "_".join(page_ids)
@@ -39,7 +34,7 @@ engine = Engine(
         email=email,
         password=password,
         headless=True,
-        mean_std_sleep_second=(11, 3),
+        mean_std_sleep_second=(8, 2),
         DOM_wait_second=90,
         scrape_cmts=False,
         comment_load_num=0,
