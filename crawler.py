@@ -315,7 +315,7 @@ class FacebookPageCrawler(Crawler):
         self.wait_DOM()
         self.sleep()
         
-        self.chrome.find_element(By.CSS_SELECTOR, "div[aria-label='Close']").click()
+        # self.chrome.find_element(By.CSS_SELECTOR, "div[aria-label='Close']").click()
 
         html_divs = self.chrome.find_elements(By.CLASS_NAME, "html-div")
         text_div, img_div = html_divs[6].find_elements(By.XPATH, "div")

@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from typing import Sequence, Literal
 
 HREF_TYPE: dict[str, Literal["image", "video", "link"]] = {
+    "/profile.php": "profile",
     "/photo.php": "image",
     "/video_redirect/": "video",
     "/l.php": "link",
@@ -34,17 +35,20 @@ class PagePostMetadata:
         raw_date = re.sub(r"([\d\w\s]+)\s·[\s\w\d]+$", r"\1", date_div.text)
 
         if len(content) > 1:
-            attachment_element: WebElement = content[1].find_element(By.XPATH, "(div)[1]")
-            attachment_element = attachment_element.find_element(By.XPATH, "//*")
-            if attachment_element.tag_name == "article":
-                attachment_hrefs = ["shared post"]
-            elif "đã cập nhật" in page_name_h3.text:
-                attachment_hrefs = ["avatar / background"]
+            attachment_element: WebElement = content[1].find_element(By.XPATH, "*")
+            if attachment_element.tag_name == "a":
+                attachment_hrefs = [attachment_element.get_attribute("href")]
             else:
-                attachment_hrefs = [
-                    a.get_attribute("href")
-                    for a in content[1].find_elements(By.TAG_NAME, "a")
-                ]
+                attachment_element = attachment_element.find_element(By.XPATH, "//*")
+                if attachment_element.tag_name == "article":
+                    attachment_hrefs = ["shared post"]
+                elif "đã cập nhật" in page_name_h3.text:
+                    attachment_hrefs = ["avatar / background"]
+                else:
+                    attachment_hrefs = [
+                        a.get_attribute("href")
+                        for a in content[1].find_elements(By.TAG_NAME, "a")
+                    ]
         else: attachment_hrefs = []
 
         self.date, self.attachment_types = self.parse_data(raw_date, attachment_hrefs)
