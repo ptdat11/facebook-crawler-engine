@@ -42,12 +42,10 @@ class SaveImages:
         save_dir: str,
         img_col: str = "images",
         img_name_format: str = "{post_id}_{cmt_id}_{ordinal}.jpg",
-        replace_url_with_file_name: bool = True
     ) -> None:
         self.img_col = img_col
         self.save_dir = pathlib.Path(save_dir)
         self.img_name_format = img_name_format
-        self.replace_url = replace_url_with_file_name
 
         if not self.save_dir.exists():
             os.makedirs(self.save_dir, exist_ok=True)
@@ -66,6 +64,9 @@ class SaveImages:
         )
         img_path = self.save_dir / img_name
         img_data = requests.get(url).content
+        if os.path.exists(img_path):
+            return img_name
+    
         with open(img_path, "wb") as f:
             f.write(img_data)
         return img_name
@@ -74,19 +75,25 @@ class SaveImages:
         self, 
         df: DataFrame,
     ) -> Any:
+        if not df.empty:
+            is_post = df["type"] == "post"
+
         for tp in df.itertuples():
+            post_img = df.loc[(df["post_id"] == tp.post_id) & is_post, "images"].values[0]
+
             img_files = []
             imgs = tp.images.split()
             for i, url in enumerate(imgs):
                 img_file = self.save_img(
                     url=url,
                     post_id=tp.post_id,
-                    cmt_id=tp.cmt_id,
+                    cmt_id=tp.cmt_id \
+                            if tp.images != post_img \
+                            else "",
                     ordinal=i
                 )
                 img_files.append(img_file)
-            if self.replace_url:
-                df.loc[tp.Index, "images"] = "   ".join(img_files)
+            df.loc[tp.Index, "image_paths"] = "   ".join(img_files)
         
         return df
         
@@ -104,7 +111,8 @@ class SaveAsCSV:
         self,
         df: DataFrame
     ) -> Any:
-
+        if df.empty:
+            return df
         df.to_csv(
             self.path,
             index=False,

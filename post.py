@@ -83,7 +83,7 @@ class PagePostMetadata:
 
 def parse_post_date(raw_date: str):
     dt = datetime.now()
-    if re.match(r"^\d{1,2} tháng \d{1,2} lúc \d{1,2}:\d{1,2}.*", raw_date):
+    if re.match(r"^\d{1,2} tháng \d{1,2}(, \d{4})? lúc \d{1,2}:\d{1,2}.*", raw_date):
         if not re.match(r"^\d{1,2} tháng \d{1,2}, \d{4}.*", raw_date):
             year = datetime.now().year
             raw_date = f", {year}".join(
@@ -91,7 +91,7 @@ def parse_post_date(raw_date: str):
             )
         raw_date = re.search(r"\d{1,2} tháng \d{1,2}, \d{4} lúc \d{1,2}:\d{1,2}", raw_date).group(0)
         dt = datetime.strptime(raw_date, "%d tháng %m, %Y lúc %H:%M")
-    elif re.match(r"^\d{1,2} tháng \d{1,2}", raw_date):
+    elif re.match(r"^\d{1,2} tháng \d{1,2}(, \d{4})?", raw_date):
         raw_date = re.search(r"\d{1,2} tháng \d{1,2}", raw_date).group(0)
         dt = datetime.strptime(raw_date, "%d tháng %m")
     elif re.match(r"\d{1,2} phút.*", raw_date):
